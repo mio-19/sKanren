@@ -24,9 +24,22 @@ case object UnifyResultTrue extends UnifyResult
 final case class UnifyResultOk(xs: Iterable[Unify]) extends UnifyResult
 
 trait Constraint {
+  val t: ConstraintT
+
+  //val r: ConstraintT
   def reduce(context: Context): ReduceResult
 
   def deepReduce(context: Context): ReduceResult
+
+  def reverse(context: Context): Constraint
+}
+
+trait ConstraintOf[T <: ConstraintT] extends Constraint {
+  override val t: T
+  //override val r: R
+  //import ConstraintOf.this.r.ev.a
+  //import ConstraintOf.this.r.ev.b
+  //override def reverse(context:Context): ConstraintOf.this.r.AConstraint
 }
 
 sealed trait ReduceResult
@@ -38,18 +51,28 @@ case object ReduceResultTrue extends ReduceResult
 final case class ReduceResultOk(xs: Iterable[Constraint]) extends ReduceResult
 
 trait ConstraintT {
+  type ReverseT
+  val reverse: ReverseT
   type AConstraint
-  implicit val ev: AConstraint <:< Constraint
   type AConstraintsInContext = Set[AConstraint]
 
   def incl(ctx: AConstraintsInContext, x: AConstraint): AConstraintsInContext = ctx.incl(x)
 
   def reduce(ctx: AConstraintsInContext): ConstraintTReduceResult
+
+  protected final class Ev(implicit a: AConstraint <:< ConstraintOf[this.type], b: ReverseT <:< ConstraintT) // c: reverse.ReverseT =:= this.type
+
+  val ev: Ev
+
+  import ConstraintT.this.ev.a
+
+  import ConstraintT.this.ev.b
+
 }
 
 sealed trait ConstraintTReduceResult // todo
 
-case class Context(ctx: HashMap[LightTypeTag, ConstraintT]) // todo
+case class Context(ctx: HashMap[ConstraintT, Any]) // ctx: HashMap[(a: ConstraintT, a.AConstraintsInContext)] // todo
 
 sealed trait Goal // todo
 
