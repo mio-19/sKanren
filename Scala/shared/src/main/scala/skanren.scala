@@ -72,7 +72,22 @@ trait ConstraintT {
 
 sealed trait ConstraintTReduceResult // todo
 
-case class Context(ctx: HashMap[ConstraintT, Any]) // ctx: HashMap[(a: ConstraintT, a.AConstraintsInContext)] // todo
+// ctx: HashMap[(a: ConstraintT, a.AConstraintsInContext)] // todo
+final case class Context(constraints: HashMap[ConstraintT, Any], goals: Iterable[Goal]) {
+  def addConstraint(x: Constraint): Option[Context] = ???
+
+  def addConstraints(xs: Iterable[Constraint]): Option[Context] = ???
+}
+
+final case class ContextNormalForm(constraints: HashMap[ConstraintT, Any])
+
+type State = Iterable[Context]
+
+object State {
+  def reduce: State = ???
+
+  def run1: Option[(ContextNormalForm, State)] = ???
+}
 
 // todo
 type UnrolledGoal = Iterable[Iterable[Goal]]
