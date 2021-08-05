@@ -31,7 +31,7 @@ trait Constraint {
 
   def deepReduce(context: Context): ReduceResult
 
-  def reverse(context: Context): Constraint
+  def reverse: Constraint
 }
 
 trait ConstraintOf[T <: ConstraintT] extends Constraint {
@@ -74,18 +74,70 @@ sealed trait ConstraintTReduceResult // todo
 
 case class Context(ctx: HashMap[ConstraintT, Any]) // ctx: HashMap[(a: ConstraintT, a.AConstraintsInContext)] // todo
 
-sealed trait Goal // todo
+// todo
+type UnrolledGoal = Iterable[Iterable[Goal]]
 
-final case class GoalConstraint(x: Constraint) extends Goal
+object UnrolledGoal {
+  val Succeed: UnrolledGoal = List(List())
 
-final case class GoalOr(x: Goal, y: Goal) extends Goal
+  def andUnrolledGoal(x: UnrolledGoal, y: UnrolledGoal): UnrolledGoal = for {
+    a <- x
+    b <- y
+  } yield a ++ b
 
-final case class GoalAnd(x: Goal, y: Goal) extends Goal
+  def andUnrolledGoals(xs: Iterable[UnrolledGoal]): UnrolledGoal = xs match {
+    case Nil => Succeed
+    case x :: xs => andUnrolledGoal(andUnrolledGoals(xs), x)
+  }
 
-final case class GoalNot(x: Goal) extends Goal
+  def orUnrolledGoal(x: UnrolledGoal, y: UnrolledGoal): UnrolledGoal = x ++ y
 
-final class GoalDelay(x: => Goal) extends Goal {
-  lazy val get = x
+  def orUnrolledGoals(xs: Iterable[UnrolledGoal]): UnrolledGoal = xs.flatten
+
+  def unrollUnrolled(x: UnrolledGoal): UnrolledGoal = orUnrolledGoals(x.map(universe => andUnrolledGoals(universe.map(_.unroll))))
+}
+
+sealed trait Goal {
+  def reverse: Goal
+
+  def unroll: UnrolledGoal
+}
+
+object Goal {
+}
+
+final case class GoalConstraint(x: Constraint) extends Goal {
+  override def reverse: Goal = GoalConstraint(x.reverse)
+
+  override def unroll: UnrolledGoal = List(List(this))
+}
+
+final case class GoalOr(x: Goal, y: Goal) extends Goal {
+  override def reverse: Goal = GoalAnd(x.reverse, y.reverse)
+
+  override def unroll: UnrolledGoal = List(List(x), List(y))
+}
+
+final case class GoalAnd(x: Goal, y: Goal) extends Goal {
+  override def reverse: Goal = GoalOr(x.reverse, y.reverse)
+
+  override def unroll: UnrolledGoal = List(List(x, y))
+}
+
+final case class GoalNot(x: Goal) extends Goal {
+  lazy val get = x.reverse
+
+  override def reverse: Goal = x
+
+  override def unroll: UnrolledGoal = List(List(this.get))
+}
+
+final class GoalDelay(generate: => Goal) extends Goal {
+  lazy val get = generate
+
+  override def reverse: Goal = GoalDelay(this.get.reverse)
+
+  override def unroll: UnrolledGoal = List(List(this.get))
 }
 
 object Goals {
