@@ -83,10 +83,15 @@ final case class ContextNormalForm(constraints: HashMap[ConstraintT, Any])
 
 type State = Iterable[Context]
 
-object State {
-  def reduce: State = ???
+implicit class StateImpl(x: State) {
+  def reduce: Option[State] = if (x.isEmpty) None else ???
 
   def run1: Option[(ContextNormalForm, State)] = ???
+
+  def runAll: List[ContextNormalForm] = this.run1 match {
+    case None => Nil
+    case Some((x, s)) => x :: s.runAll
+  }
 }
 
 // todo
