@@ -95,6 +95,8 @@ trait ConstraintOf[T <: ConstraintT] extends Constraint {
 type ReduceResult = Option[Iterable[Constraint]]
 
 trait ConstraintT {
+  final def getFromOption(ctx: Context): Option[AConstraintsInContext] = ctx.constraints.get(this).asInstanceOf[Option[AConstraintsInContext]]
+
   type ReverseT
   val reverse: ReverseT
   type AConstraint
