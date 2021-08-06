@@ -48,6 +48,18 @@ trait Unifiable {
   final def unify(context: UnifyContext, other: Unifiable, x: Unifiable, y: Unifiable): UnifyResult = this.unify(context, other, x.unify(context, y))
 }
 
+trait UnifiableAtom extends Unifiable {
+  override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = if (this == other) Some(Nil) else None
+}
+
+trait Unifitor[T] {
+  def impl_unify(self: T, context: UnifyContext, other: Unifiable): UnifyResult
+}
+
+implicit class UnifitorWrapper[T](x: T)(implicit instance: Unifitor[T]) extends Unifiable {
+  override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = instance.impl_unify(x, context, other)
+}
+
 type UnifyResult = Option[List[UnifyNormalForm]]
 
 val UnifyResultFailure = None
@@ -265,5 +277,30 @@ object NotEqual extends ConstraintT {
 
   override def incl(ctx: AConstraintsInContext, x: AConstraint): Option[AConstraintsInContext] = ???
 
+  override def normalForm(ctx: AConstraintsInContext): Option[AConstraintsInContext] = ???
+
   override val ev = Ev()
+}
+
+trait Generator[T] {
+  val generate: LazyList[T]
+}
+
+def mergeLazyList[T, U](xs: LazyList[T], ys: LazyList[U]): LazyList[T | U] = xs match {
+  case head #:: tail => head #:: mergeLazyList(ys, tail)
+  case _ => ys
+}
+
+final case class SimpleGenerator[T](override val generate: LazyList[T]) extends Generator[T]
+
+trait FiniteGenerator[T] extends Generator[T] {
+  override val generate: LazyList[T] = LazyList.empty.concat(generateFinite)
+  lazy val generateFinite: List[T]
+}
+
+implicit class GeneratorImpl[T](x: Generator[T]) {
+  def or[U](y: Generator[U]): Generator[T | U] = SimpleGenerator(mergeLazyList(x.generate, y.generate))
+}
+
+object generators {
 }
