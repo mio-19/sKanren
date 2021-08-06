@@ -56,29 +56,68 @@ trait UnifiableAtom extends Unifiable {
 
 trait Unifitor[T] {
   def impl_unify(self: T, context: UnifyContext, other: Any): UnifyResult
+
+  final def unify(self: T, context: UnifyContext, other: Any): UnifyResult = (self, other) match {
+    case (self, other: UnifitorWrapper[_]) => this.unify(self, context, other.get)
+    case (self, other: Hole) => other.unify(context, UnifitorWrapper(self)(this))
+    case (self, other) => this.impl_unify(self, context, other)
+  }
+
+  final def unify(self: T, context: UnifyContext, other: Any, normal: UnifyResult): UnifyResult = for {
+    normal <- normal
+    result <- this.unify(self, context.add(normal), other)
+  } yield normal ++ result
+
+  final def unify[U](self: T, context: UnifyContext, other: Any, x: U, y: Any)(implicit u: Unifitor[U]): UnifyResult = this.unify(self, context, other, u.unify(x, context, y))
 }
 
 trait UnifitorAtom[T] extends Unifitor[T] {
   def impl_unify(self: T, context: UnifyContext, other: Any): UnifyResult = if (self == other) Some(Nil) else None
 }
 
-implicit class UnifitorWrapper[T](x: T)(implicit instance: Unifitor[T]) extends Unifiable {
-  private val get = x
+trait AbstractUnifiableWrapper {
 
-  override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = x match {
-    case x: UnifitorWrapper[_] => x.impl_unify(context, other)
-    case _ => instance.impl_unify(x, context, UnifitorWrapper.deWrapper(other))
-  }
 }
 
-object UnifitorWrapper {
-  private def deWrapper(x: Any): Any = x match {
-    case x: UnifitorWrapper[_] => deWrapper(x.get)
-    case _ => x
+implicit class UnifitorWrapper[T](x: T)(implicit instance: Unifitor[T]) extends Unifiable {
+  if (x.isInstanceOf[UnifitorWrapper[_]]) {
+    throw new IllegalArgumentException()
   }
+  private[skanren] val get = x
+  private val getInstance = instance
+
+  override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = instance.unify(x, context, other)
 }
 
 implicit object SymbolUnifitor extends UnifitorAtom[Symbol]
+
+/*
+implicit class Tuple2Unifiable[T <: Unifiable, U <: Unifiable](tuple: Tuple2[T, U]) extends Unifiable {
+  val get = tuple
+
+  override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = other match {
+    case other: Tuple2Unifiable[Unifiable, Unifiable] => tuple._1.unify(context, other.get._1, tuple._2, other.get._2)
+    case _ => UnifyResultFailure
+  }
+}
+*/
+final case class Tuple2Unifitor[T, U]()(implicit t: Unifitor[T], u: Unifitor[U]) extends Unifitor[Tuple2[T, U]] {
+  override def impl_unify(self: Tuple2[T, U], context: UnifyContext, other: Any): UnifyResult = other match {
+    case other: Tuple2[_, _] => t.unify(self._1, context, other._1, self._2, other._2)
+  }
+}
+
+implicit class Tuple2Unifiable[T, U](x: Tuple2[T, U])(implicit t: Unifitor[T], u: Unifitor[U]) extends UnifitorWrapper(x)(Tuple2Unifitor()(t, u))
+
+final class UnifiableUnifitor[T <: Unifiable] extends Unifitor[T] {
+  override def impl_unify(self: T, context: UnifyContext, other: Any): UnifyResult = other match {
+    case other: Unifiable => self.unify(context, other)
+    case _ => UnifyResultFailure
+  }
+}
+
+implicit val unifiableUnifitor: Unifitor[Unifiable] = UnifiableUnifitor[Unifiable]
+implicit val holeUnifitor: Unifitor[Hole] = UnifiableUnifitor[Hole]
 
 type UnifyResult = Option[List[UnifyNormalForm]]
 
@@ -98,15 +137,6 @@ final case class Hole(identifier: Symbol) extends Unifiable {
   }
 
   override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = throw new IllegalStateException()
-}
-
-implicit class Tuple2Unifiable[T <: Unifiable, U <: Unifiable](tuple: Tuple2[T, U]) extends Unifiable {
-  val get = tuple
-
-  override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = other match {
-    case other: Tuple2Unifiable[Unifiable, Unifiable] => tuple._1.unify(context, other.get._1, tuple._2, other.get._2)
-    case _ => UnifyResultFailure
-  }
 }
 
 trait Constraint {
