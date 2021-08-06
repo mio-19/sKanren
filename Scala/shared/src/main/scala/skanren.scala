@@ -46,6 +46,8 @@ trait Unifiable {
   final def unify(context: UnifyContext, other: Unifiable, normal: UnifyResult): UnifyResult = normal.flatMap(normal => this.unify(context.add(normal), other).map(normal ++ _))
 
   final def unify(context: UnifyContext, other: Unifiable, x: Unifiable, y: Unifiable): UnifyResult = this.unify(context, other, x.unify(context, y))
+
+  final def unify(other: Unifiable): UnifyResult = this.unify(UnifyContext.Default, other)
 }
 
 trait UnifiableAtom extends Unifiable {
@@ -56,9 +58,15 @@ trait Unifitor[T] {
   def impl_unify(self: T, context: UnifyContext, other: Unifiable): UnifyResult
 }
 
+trait UnifitorAtom[T] extends Unifitor[T] {
+  def impl_unify(self: T, context: UnifyContext, other: Unifiable): UnifyResult = if (this == other) Some(Nil) else None
+}
+
 implicit class UnifitorWrapper[T](x: T)(implicit instance: Unifitor[T]) extends Unifiable {
   override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = instance.impl_unify(x, context, other)
 }
+
+implicit object SymbolUnifitor extends UnifitorAtom[Symbol]
 
 type UnifyResult = Option[List[UnifyNormalForm]]
 
