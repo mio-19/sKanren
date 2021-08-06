@@ -8,20 +8,74 @@ import izumi.reflect.Tag
 def typeOf[T](implicit ev: Tag[T]): LightTypeTag = ev.tag
 
 final case class Unify(x: Unifiable, y: Unifiable) {
-  def apply: UnifyResult = x.unify(y)
+  def apply(context: UnifyContext): UnifyResult = x.unify(context, y)
+}
+
+final case class UnifyNormalForm(x: Hole, y: Unifiable)
+
+type UnifyContext = HashMap[Hole, Unifiable]
+
+implicit class UnifyContextImpl(ctx: UnifyContext) {
+  def add(x: UnifyNormalForm): UnifyContext = x match {
+    case UnifyNormalForm(x, y) => if (ctx.contains(x)) throw new IllegalArgumentException() else ctx.updated(x, y)
+  }
+
+  def add(xs: List[UnifyNormalForm]): UnifyContext = xs.foldLeft(ctx)((x, y) => x.add(y))
 }
 
 trait Unifiable {
-  def unify(other: Unifiable): UnifyResult
+  def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult
+
+  final def unify(context: UnifyContext, other: Unifiable): UnifyResult = (this, other) match {
+    case (self: Hole, other: Hole) => (self.walkOption(context), other.walkOption(context)) match {
+      case (Some(self), Some(other)) => self.unify(context, other)
+      case (Some(self), None) => self.unify(context, other)
+      case (None, Some(other)) => self.unify(context, other)
+      case (None, None) => Some(List(UnifyNormalForm(self, other)))
+    }
+    case (self: Hole, other) => self.walkOption(context) match {
+      case Some(self) => other.unify(context, self)
+      case None => Some(List(UnifyNormalForm(self, other)))
+    }
+    case (self, other: Hole) => other.unify(context, self)
+    case (self, other) => self.impl_unify(context, other)
+  }
+
+  final def unify(context: UnifyContext, other: Unifiable, normal: UnifyNormalForm): UnifyResult = this.unify(context.add(normal), other).map(normal :: _)
+
+  final def unify(context: UnifyContext, other: Unifiable, normal: UnifyResult): UnifyResult = normal.flatMap(normal => this.unify(context.add(normal), other).map(normal ++ _))
+
+  final def unify(context: UnifyContext, other: Unifiable, x: Unifiable, y: Unifiable): UnifyResult = this.unify(context, other, x.unify(context, y))
 }
 
-sealed trait UnifyResult
+type UnifyResult = Option[List[UnifyNormalForm]]
 
-case object UnifyResultFailed extends UnifyResult
+val UnifyResultFailure = None
 
-case object UnifyResultTrue extends UnifyResult
+final case class Hole(identifier: Symbol) extends Unifiable {
+  def walkOption(context: UnifyContext): Option[Unifiable] = context.get(this) match {
+    case Some(next: Hole) => Some(next.walk(context))
+    case Some(next) => Some(next)
+    case None => None
+  }
 
-final case class UnifyResultOk(xs: Iterable[Unify]) extends UnifyResult
+  def walk(context: UnifyContext): Unifiable = context.get(this) match {
+    case Some(next: Hole) => next.walk(context)
+    case Some(next) => next
+    case None => this
+  }
+
+  override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = throw new IllegalStateException()
+}
+
+implicit class Tuple2Unifiable[T <: Unifiable, U <: Unifiable](tuple: Tuple2[T, U]) extends Unifiable {
+  val get = tuple
+
+  override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = other match {
+    case other: Tuple2Unifiable[Unifiable, Unifiable] => tuple._1.unify(context, other.get._1, tuple._2, other.get._2)
+    case _ => UnifyResultFailure
+  }
+}
 
 trait Constraint {
   val t: ConstraintT
@@ -172,3 +226,12 @@ final class GoalDelay(generate: => Goal) extends Goal {
 object Goals {
 }
 
+/*
+object Equal extends ConstraintT {
+  type AConstraintsInContext = UnifyContext
+}
+
+object NotEqual extends ConstraintT {
+
+}
+*/
