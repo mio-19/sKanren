@@ -11,6 +11,10 @@ final case class UnifyNormalForm(x: Hole, y: Unifiable)
 
 type UnifyContext = HashMap[Hole, Unifiable]
 
+object UnifyContext {
+  val Default: UnifyContext = HashMap()
+}
+
 implicit class UnifyContextImpl(ctx: UnifyContext) {
   def add(x: UnifyNormalForm): UnifyContext = x match {
     case UnifyNormalForm(x, y) => if (ctx.contains(x)) throw new IllegalArgumentException() else ctx.updated(x, y)
@@ -101,6 +105,7 @@ trait ConstraintT {
   val reverse: ReverseT
   type AConstraint
   type AConstraintsInContext
+  val default: AConstraintsInContext
 
   def incl(ctx: AConstraintsInContext, x: AConstraint): Option[AConstraintsInContext]
 
@@ -235,6 +240,7 @@ object Equal extends ConstraintT {
   override type AConstraint = Unify
   override type ReverseT = NotEqual.type
   override val reverse = NotEqual
+  override val default = UnifyContext.Default
 
   override def incl(ctx: AConstraintsInContext, x: AConstraint): Option[AConstraintsInContext] = x(ctx) match {
     case Some(adds) => Some(ctx.add(adds))
@@ -255,6 +261,7 @@ object NotEqual extends ConstraintT {
   override type AConstraint = NegativeUnify
   override type ReverseT = Equal.type
   override val reverse = Equal
+  override val default = UnifyContext.Default
 
   override def incl(ctx: AConstraintsInContext, x: AConstraint): Option[AConstraintsInContext] = ???
 
