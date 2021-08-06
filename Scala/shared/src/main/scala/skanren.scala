@@ -7,10 +7,6 @@ import izumi.reflect.Tag
 
 def typeOf[T](implicit ev: Tag[T]): LightTypeTag = ev.tag
 
-final case class Unify(x: Unifiable, y: Unifiable) {
-  def apply(context: UnifyContext): UnifyResult = x.unify(context, y)
-}
-
 final case class UnifyNormalForm(x: Hole, y: Unifiable)
 
 type UnifyContext = HashMap[Hole, Unifiable]
@@ -81,9 +77,9 @@ trait Constraint {
   val t: ConstraintT
 
   //val r: ConstraintT
-  def reduce(context: Context): ReduceResult
+  def reduce(context: Context): ReduceResult = Some(List(this))
 
-  def deepReduce(context: Context): ReduceResult
+  def deepReduce(context: Context): ReduceResult = Some(List(this))
 
   def reverse: Constraint
 }
@@ -96,23 +92,17 @@ trait ConstraintOf[T <: ConstraintT] extends Constraint {
   //override def reverse(context:Context): ConstraintOf.this.r.AConstraint
 }
 
-sealed trait ReduceResult
-
-case object ReduceResultFailed extends ReduceResult
-
-case object ReduceResultTrue extends ReduceResult
-
-final case class ReduceResultOk(xs: Iterable[Constraint]) extends ReduceResult
+type ReduceResult = Option[Iterable[Constraint]]
 
 trait ConstraintT {
   type ReverseT
   val reverse: ReverseT
   type AConstraint
-  type AConstraintsInContext = Set[AConstraint]
+  type AConstraintsInContext
 
-  def incl(ctx: AConstraintsInContext, x: AConstraint): AConstraintsInContext = ctx.incl(x)
+  def incl(ctx: AConstraintsInContext, x: AConstraint): Option[AConstraintsInContext]
 
-  def reduce(ctx: AConstraintsInContext): ConstraintTReduceResult
+  def normalForm(ctx: AConstraintsInContext): Option[AConstraintsInContext] = Some(ctx)
 
   protected final class Ev(implicit a: AConstraint <:< ConstraintOf[this.type], b: ReverseT <:< ConstraintT) // c: reverse.ReverseT =:= this.type
 
@@ -124,7 +114,11 @@ trait ConstraintT {
 
 }
 
-sealed trait ConstraintTReduceResult // todo
+trait ConstraintTSet extends ConstraintT {
+  override type AConstraintsInContext = Set[AConstraint]
+
+  override def incl(ctx: AConstraintsInContext, x: AConstraint): Option[AConstraintsInContext] = Some(ctx.incl(x))
+}
 
 // ctx: HashMap[(a: ConstraintT, a.AConstraintsInContext)] // todo
 final case class Context(constraints: HashMap[ConstraintT, Any], goals: Iterable[Goal]) {
@@ -226,12 +220,41 @@ final class GoalDelay(generate: => Goal) extends Goal {
 object Goals {
 }
 
-/*
+final case class Unify(x: Unifiable, y: Unifiable) extends ConstraintOf[Equal.type] {
+  override val t = Equal
+
+  override def reverse: NegativeUnify = NegativeUnify(x, y)
+
+  def apply(context: UnifyContext): UnifyResult = x.unify(context, y)
+}
+
 object Equal extends ConstraintT {
-  type AConstraintsInContext = UnifyContext
+  override type AConstraintsInContext = UnifyContext
+  override type AConstraint = Unify
+  override type ReverseT = NotEqual.type
+  override val reverse = NotEqual
+
+  override def incl(ctx: AConstraintsInContext, x: AConstraint): Option[AConstraintsInContext] = x(ctx) match {
+    case Some(adds) => Some(ctx.add(adds))
+    case None => None
+  }
+
+  override val ev = Ev()
+}
+
+final case class NegativeUnify(x: Unifiable, y: Unifiable) extends ConstraintOf[NotEqual.type] {
+  override val t = NotEqual
+
+  override def reverse: Unify = Unify(x, y)
 }
 
 object NotEqual extends ConstraintT {
+  override type AConstraintsInContext = UnifyContext
+  override type AConstraint = NegativeUnify
+  override type ReverseT = Equal.type
+  override val reverse = Equal
 
+  override def incl(ctx: AConstraintsInContext, x: AConstraint): Option[AConstraintsInContext] = ???
+
+  override val ev = Ev()
 }
-*/
