@@ -55,15 +55,27 @@ trait UnifiableAtom extends Unifiable {
 }
 
 trait Unifitor[T] {
-  def impl_unify(self: T, context: UnifyContext, other: Unifiable): UnifyResult
+  def impl_unify(self: T, context: UnifyContext, other: Any): UnifyResult
 }
 
 trait UnifitorAtom[T] extends Unifitor[T] {
-  def impl_unify(self: T, context: UnifyContext, other: Unifiable): UnifyResult = if (this == other) Some(Nil) else None
+  def impl_unify(self: T, context: UnifyContext, other: Any): UnifyResult = if (self == other) Some(Nil) else None
 }
 
 implicit class UnifitorWrapper[T](x: T)(implicit instance: Unifitor[T]) extends Unifiable {
-  override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = instance.impl_unify(x, context, other)
+  private val get = x
+
+  override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = x match {
+    case x: UnifitorWrapper[_] => x.impl_unify(context, other)
+    case _ => instance.impl_unify(x, context, UnifitorWrapper.deWrapper(other))
+  }
+}
+
+object UnifitorWrapper {
+  private def deWrapper(x: Any): Any = x match {
+    case x: UnifitorWrapper[_] => deWrapper(x.get)
+    case _ => x
+  }
 }
 
 implicit object SymbolUnifitor extends UnifitorAtom[Symbol]
