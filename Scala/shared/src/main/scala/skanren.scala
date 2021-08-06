@@ -77,6 +77,10 @@ final case class Context(constraints: HashMap[ConstraintT, Any], goals: Iterable
   def addConstraint(x: Constraint): Option[Context] = ???
 
   def addConstraints(xs: Iterable[Constraint]): Option[Context] = ???
+
+  def addGoal(x: Goal): Option[Context] = ???
+
+  def addGoals(xs: Iterable[Goal]): Option[Context] = xs.foldLeft(Some(this): Option[Context])((ctx, goal) => ctx.flatMap(_.addGoal(goal)))
 }
 
 final case class ContextNormalForm(constraints: HashMap[ConstraintT, Any])
@@ -84,6 +88,11 @@ final case class ContextNormalForm(constraints: HashMap[ConstraintT, Any])
 type State = Iterable[Context]
 
 implicit class StateImpl(x: State) {
+  def addUnrolledGoal(goal: UnrolledGoal): State = (for {
+    adds <- goal
+    ctx <- x
+  } yield ctx.addGoals(adds)).flatten
+
   def reduce: Option[State] = if (x.isEmpty) None else ???
 
   def run1: Option[(ContextNormalForm, State)] = ???
