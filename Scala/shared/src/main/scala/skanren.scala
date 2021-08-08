@@ -171,6 +171,12 @@ trait ConstraintT {
 
   def incl(ctx: AConstraintsInContext, x: AConstraint): Option[AConstraintsInContext]
 
+  def incls(ctx: AConstraintsInContext, xs: List[AConstraint]): Option[AConstraintsInContext] = xs match {
+    case Nil => Some(ctx)
+    case x :: Nil => this.incl(ctx, x)
+    case x :: xs => this.incl(ctx, x).flatMap(this.incls(_, xs))
+  }
+
   def normalForm(ctx: AConstraintsInContext): Option[AConstraintsInContext] = Some(ctx)
 
   protected final class Ev(implicit a: AConstraint <:< ConstraintOf[this.type], b: ReverseT <:< ConstraintT) // c: reverse.ReverseT =:= this.type
