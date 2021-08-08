@@ -167,6 +167,8 @@ type ReduceResult = Option[Iterable[Constraint]]
 trait ConstraintT {
   final def getFromOption(ctx: Context): Option[AConstraintsInContext] = ctx.constraints.get(this).asInstanceOf[Option[AConstraintsInContext]]
 
+  final def getFromOrDefault(ctx: Context): AConstraintsInContext = getFromOption(ctx).getOrElse(default)
+
   type ReverseT
   val reverse: ReverseT
   type AConstraint
@@ -181,7 +183,7 @@ trait ConstraintT {
     case x :: xs => this.incl(ctx, x).flatMap(this.incls(_, xs))
   }
 
-  def normalForm(ctx: AConstraintsInContext): Option[AConstraintsInContext] = Some(ctx)
+  def normalForm(ctx: Context): Option[AConstraintsInContext] = Some(getFromOrDefault(ctx))
 
   protected final class Ev(implicit a: AConstraint <:< ConstraintOf[this.type], b: ReverseT <:< ConstraintT) // c: reverse.ReverseT =:= this.type
 
@@ -329,15 +331,29 @@ final case class NegativeUnify(x: Unifiable, y: Unifiable) extends ConstraintOf[
 }
 
 object NotEqual extends ConstraintT {
-  override type AConstraintsInContext = UnifyContext
+  override type AConstraintsInContext = Set[UnifyNormalForm]
   override type AConstraint = NegativeUnify
   override type ReverseT = Equal.type
   override val reverse = Equal
-  override val default = UnifyContext.Default
+  override val default = Set()
+
+  private def toNegativeUnify(x: UnifyNormalForm): NegativeUnify = x match {
+    case UnifyNormalForm(a, b) => NegativeUnify(a, b)
+  }
 
   override def incl(ctx: AConstraintsInContext, x: AConstraint): Option[AConstraintsInContext] = ???
 
-  override def normalForm(ctx: AConstraintsInContext): Option[AConstraintsInContext] = ???
+  private def norm(equalCtx: UnifyContext, x: NegativeUnify): Option[List[UnifyNormalForm]] = x match {
+    case NegativeUnify(a, b) => a.unify(equalCtx, b) match {
+      case None => Some(List())
+      case Some(ctx, Nil) => None
+      case Some(ctx, adds@(_ :: _)) => Some(adds)
+    }
+  }
+
+  private def normal(equalCtx: UnifyContext, notEqCtx: AConstraintsInContext): Option[AConstraintsInContext] = ???
+
+  override def normalForm(ctx: Context): Option[AConstraintsInContext] = normal(Equal.getFromOrDefault(ctx), this.getFromOrDefault(ctx))
 
   override val ev = Ev()
 }
