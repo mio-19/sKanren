@@ -31,19 +31,20 @@ trait Unifiable {
       case (Some(self), Some(other)) => self.unify(context, other)
       case (Some(self), None) => self.unify(context, other)
       case (None, Some(other)) => self.unify(context, other)
-      case (None, None) => Some(List(UnifyNormalForm(self, other)))
+      case (None, None) => Some(context, List(UnifyNormalForm(self, other)))
     }
     case (self: Hole, other) => self.walkOption(context) match {
       case Some(self) => other.unify(context, self)
-      case None => Some(List(UnifyNormalForm(self, other)))
+      case None => Some(context, List(UnifyNormalForm(self, other)))
     }
     case (self, other: Hole) => other.unify(context, self)
     case (self, other) => self.impl_unify(context, other)
   }
 
-  final def unify(context: UnifyContext, other: Unifiable, normal: UnifyNormalForm): UnifyResult = this.unify(context.add(normal), other).map(normal :: _)
-
-  final def unify(context: UnifyContext, other: Unifiable, normal: UnifyResult): UnifyResult = normal.flatMap(normal => this.unify(context.add(normal), other).map(normal ++ _))
+  final def unify(_context: UnifyContext, other: Unifiable, normal: UnifyResult): UnifyResult = for {
+    (ctx1, xs) <- normal
+    (ctx2, ys) <- this.unify(ctx1, other)
+  } yield (ctx2, ys++xs)
 
   final def unify(context: UnifyContext, other: Unifiable, x: Unifiable, y: Unifiable): UnifyResult = this.unify(context, other, x.unify(context, y))
 
@@ -51,7 +52,7 @@ trait Unifiable {
 }
 
 trait UnifiableAtom extends Unifiable {
-  override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = if (this == other) Some(Nil) else None
+  override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = if (this == other) Some((context,Nil)) else None
 }
 
 trait Unifitor[T] {
@@ -63,16 +64,16 @@ trait Unifitor[T] {
     case (self, other) => this.impl_unify(self, context, other)
   }
 
-  final def unify(self: T, context: UnifyContext, other: Any, normal: UnifyResult): UnifyResult = for {
-    normal <- normal
-    result <- this.unify(self, context.add(normal), other)
-  } yield normal ++ result
+  final def unify(self: T, _context: UnifyContext, other: Any, normal: UnifyResult): UnifyResult = for {
+    (ctx1, xs) <- normal
+    (ctx2, ys) <- this.unify(self, ctx1, other)
+  } yield (ctx2, ys ++ xs)
 
   final def unify[U](self: T, context: UnifyContext, other: Any, x: U, y: Any)(implicit u: Unifitor[U]): UnifyResult = this.unify(self, context, other, u.unify(x, context, y))
 }
 
 trait UnifitorAtom[T] extends Unifitor[T] {
-  def impl_unify(self: T, context: UnifyContext, other: Any): UnifyResult = if (self == other) Some(Nil) else None
+  def impl_unify(self: T, context: UnifyContext, other: Any): UnifyResult = if (self == other) Some((context, Nil)) else None
 }
 
 trait AbstractUnifiableWrapper {
@@ -119,7 +120,7 @@ final class UnifiableUnifitor[T <: Unifiable] extends Unifitor[T] {
 implicit val unifiableUnifitor: Unifitor[Unifiable] = UnifiableUnifitor[Unifiable]
 implicit val holeUnifitor: Unifitor[Hole] = UnifiableUnifitor[Hole]
 
-type UnifyResult = Option[List[UnifyNormalForm]]
+type UnifyResult = Option[(UnifyContext, List[UnifyNormalForm])]
 
 val UnifyResultFailure = None
 
@@ -308,7 +309,7 @@ object Equal extends ConstraintT {
   override val default = UnifyContext.Default
 
   override def incl(ctx: AConstraintsInContext, x: AConstraint): Option[AConstraintsInContext] = x(ctx) match {
-    case Some(adds) => Some(ctx.add(adds))
+    case Some(newctx, _adds) => Some(newctx)
     case None => None
   }
 
