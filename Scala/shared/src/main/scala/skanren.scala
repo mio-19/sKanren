@@ -143,9 +143,6 @@ trait Constraint {
   val t: ConstraintT
 
   //val r: ConstraintT
-  def reduce(context: Context): ReduceResult = Some(List(this))
-
-  def deepReduce(context: Context): ReduceResult = Some(List(this))
 
   def reverse: Constraint
 }
