@@ -31,11 +31,17 @@ trait Unifiable {
       case (Some(self), Some(other)) => self.unify(context, other)
       case (Some(self), None) => self.unify(context, other)
       case (None, Some(other)) => self.unify(context, other)
-      case (None, None) => Some(context, List(UnifyNormalForm(self, other)))
+      case (None, None) => {
+        val result = UnifyNormalForm(self, other)
+        Some(context.add(result), List(result))
+      }
     }
     case (self: Hole, other) => self.walkOption(context) match {
       case Some(self) => other.unify(context, self)
-      case None => Some(context, List(UnifyNormalForm(self, other)))
+      case None => {
+        val result = UnifyNormalForm(self, other)
+        Some(context.add(result), List(result))
+      }
     }
     case (self, other: Hole) => other.unify(context, self)
     case (self, other) => self.impl_unify(context, other)
@@ -44,7 +50,7 @@ trait Unifiable {
   final def unify(_context: UnifyContext, other: Unifiable, normal: UnifyResult): UnifyResult = for {
     (ctx1, xs) <- normal
     (ctx2, ys) <- this.unify(ctx1, other)
-  } yield (ctx2, ys++xs)
+  } yield (ctx2, ys ++ xs)
 
   final def unify(context: UnifyContext, other: Unifiable, x: Unifiable, y: Unifiable): UnifyResult = this.unify(context, other, x.unify(context, y))
 
@@ -52,7 +58,7 @@ trait Unifiable {
 }
 
 trait UnifiableAtom extends Unifiable {
-  override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = if (this == other) Some((context,Nil)) else None
+  override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = if (this == other) Some((context, Nil)) else None
 }
 
 trait Unifitor[T] {
