@@ -4,6 +4,7 @@ import scala.collection.immutable.{HashMap, HashSet}
 import cats.implicits._
 import scala.collection.parallel.CollectionConverters._
 import scala.collection.parallel.immutable.ParVector
+import scala.collection.parallel.immutable.ParSeq
 
 
 //import izumi.reflect.macrortti.LightTypeTag
@@ -263,11 +264,11 @@ private def listABToMapAListB[A,B](xs:List[(A,B)], base: HashMap[A,List[B]]):Has
 
 final case class ContextNormalForm(constraints: HashMap[ConstraintT, Any])
 
-type State = List[Context]
+type State = ParSeq[Context]
 
 implicit class StateImpl(x: State) {
   def addUnrolledGoal(goal: UnrolledGoal): State = (for {
-    adds <- goal
+    adds <- goal.par
     ctx <- x
   } yield ctx.addGoals(adds)).flatten
 
