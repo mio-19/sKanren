@@ -8,3 +8,4 @@ Todo:
 + condp ? from [ICFP 2018 A Surprisingly Competitive Conditional Operator: miniKanrenizing the Inference Rules of Pie](https://icfp18.sigplan.org/details/scheme-2018-papers/7/A-Surprisingly-Competitive-Conditional-Operator-miniKanrenizing-the-Inference-Rules-)
 + branch prediction using information at run time
 + optimizations ? from "Guarded Fresh Goals: Dependency-Directed Introduction of Fresh Logic Variables"
++ forall ? classical logic: `(forall (v) domain goal)` = `(not (exists (v) (conj domain (not goal))))`
