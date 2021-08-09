@@ -231,9 +231,9 @@ trait ConstraintTSet extends ConstraintT {
 
 // ctx: HashMap[(a: ConstraintT, a.AConstraintsInContext)] // todo
 final case class Context(constraints: HashMap[ConstraintT, Any], goals: Iterable[Goal]) {
-  def addConstraint(x: Constraint): Option[Context] = ???
-
-  def addConstraints(xs: Iterable[Constraint]): Option[Context] = ???
+  def addConstraint(x: Constraint): Option[Context] = for {
+    newT <- x.t.incl(this,x.asInstanceOf[x.t.AConstraint])
+  } yield x.t.setIn(this, newT)
 
   def addGoal(x: Goal): Option[Context] = addGoals(List(x))
 
