@@ -192,18 +192,22 @@ trait ConstraintT {
 
   final def getFromOrDefault(ctx: Context): AConstraintsInContext = getFromOption(ctx).getOrElse(default)
 
+  final def setIn(ctx:Context, x: AConstraintsInContext): Context = ctx match {
+    case Context(constraints, goals) => Context(constraints.updated(this, x), goals)
+  }
+
   type ReverseT
   val reverse: ReverseT
   type AConstraint
   type AConstraintsInContext
   val default: AConstraintsInContext
 
-  def incl(ctx: AConstraintsInContext, x: AConstraint): Option[AConstraintsInContext]
+  def incl(ctx: Context, x: AConstraint): Option[AConstraintsInContext] = this.incls(ctx, List(x))
 
-  def incls(ctx: AConstraintsInContext, xs: List[AConstraint]): Option[AConstraintsInContext] = xs match {
-    case Nil => Some(ctx)
+  def incls(ctx: Context, xs: List[AConstraint]): Option[AConstraintsInContext] = xs match {
+    case Nil => Some(getFromOrDefault(ctx))
     case x :: Nil => this.incl(ctx, x)
-    case x :: xs => this.incl(ctx, x).flatMap(this.incls(_, xs))
+    case x :: xs => this.incl(ctx, x).flatMap(a=>this.incls(setIn(ctx,a), xs))
   }
 
   def normalForm(ctx: Context): Option[AConstraintsInContext] = Some(getFromOrDefault(ctx))
@@ -221,7 +225,7 @@ trait ConstraintT {
 trait ConstraintTSet extends ConstraintT {
   override type AConstraintsInContext = Set[AConstraint]
 
-  override def incl(ctx: AConstraintsInContext, x: AConstraint): Option[AConstraintsInContext] = Some(ctx.incl(x))
+  override def incl(ctx: Context, x: AConstraint): Option[AConstraintsInContext] = Some(getFromOrDefault(ctx).incl(x))
 }
 
 // ctx: HashMap[(a: ConstraintT, a.AConstraintsInContext)] // todo
@@ -339,7 +343,7 @@ object Equal extends ConstraintT {
   override val reverse = NotEqual
   override val default = UnifyContext.Default
 
-  override def incl(ctx: AConstraintsInContext, x: AConstraint): Option[AConstraintsInContext] = x(ctx) match {
+  override def incl(ctx: Context, x: AConstraint): Option[AConstraintsInContext] = x(getFromOrDefault(ctx)) match {
     case Some(newctx, _adds) => Some(newctx)
     case None => None
   }
@@ -364,8 +368,11 @@ object NotEqual extends ConstraintT {
     case UnifyNormalForm(a, b) => NegativeUnify(a, b)
   }
 
-  override def incl(ctx: AConstraintsInContext, x: AConstraint): Option[AConstraintsInContext] = ???
+  override def incls(ctx: Context, xs: List[AConstraint]): Option[AConstraintsInContext] = for {
+    adds <- norms(Equal.getFromOrDefault(ctx), xs)
+  } yield getFromOrDefault(ctx)++adds
 
+  private def norms(equalCtx: UnifyContext, xs: List[NegativeUnify]): Option[List[UnifyNormalForm]] = xs.map(norm(equalCtx, _)).sequence.map(_.flatten)
   private def norm(equalCtx: UnifyContext, x: NegativeUnify): Option[List[UnifyNormalForm]] = x match {
     case NegativeUnify(a, b) => a.unify(equalCtx, b) match {
       case None => Some(List())
@@ -375,7 +382,7 @@ object NotEqual extends ConstraintT {
   }
 
   private def normal(equalCtx: UnifyContext, notEqCtx: AConstraintsInContext): Option[AConstraintsInContext] =notEqCtx.mapSequence(x=>norm(equalCtx,toNegativeUnify(x))).map(_.flatten)
-  override def normalForm(ctx: Context): Option[AConstraintsInContext] = normal(Equal.getFromOrDefault(ctx), this.getFromOrDefault(ctx))
+  override def normalForm(ctx: Context): Option[AConstraintsInContext] = normal(Equal.getFromOrDefault(ctx), getFromOrDefault(ctx))
 
   override val ev = Ev()
 }
