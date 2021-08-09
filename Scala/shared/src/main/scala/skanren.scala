@@ -228,11 +228,6 @@ trait ConstraintTSet extends ConstraintT {
   override def incl(ctx: Context, x: AConstraint): Option[AConstraintsInContext] = Some(getFromOrDefault(ctx).incl(x))
 }
 
-private def listABToMapASetB[A,B](xs:List[(A,B)], base: HashMap[A,HashSet[B]] = HashMap()):HashMap[A,HashSet[B]] = xs match {
-  case (k,v)::xs=> listABToMapASetB(xs, base.updated(k,base.getOrElse(k,HashSet()).incl(v)))
-  case Nil => base
-}
-
 // ctx: HashMap[(a: ConstraintT, a.AConstraintsInContext)] // todo
 final case class Context(constraints: HashMap[ConstraintT, Any], goals: Iterable[Goal]) {
   def addConstraint(x: Constraint): Option[Context] = ???
@@ -241,17 +236,34 @@ final case class Context(constraints: HashMap[ConstraintT, Any], goals: Iterable
 
   def addGoal(x: Goal): Option[Context] = addGoals(List(x))
 
-  def addGoals(xs: Iterable[Goal]): Option[Context] = {
+  def addGoals(xs: List[Goal]): Option[Context] = {
     val (newConstraints0, newGoals) = xs.partition(_.isInstanceOf[Constraint])
     val newConstraints = newConstraints0.map(_.asInstanceOf[Constraint])
-    val newcs = newConstraints.map(x=>(x.t, x))
-    ???
+    val newcs = Context.listABToMapAListB(newConstraints.map(x=>(x.t, x)), HashMap()).toList
+    Context.doConstraintss(Context(this.constraints,newGoals),newcs)
+  }
+}
+object Context {
+private def listABToMapAListB[A,B](xs:List[(A,B)], base: HashMap[A,List[B]]):HashMap[A,List[B]] = xs match {
+  case (k,v)::xs=> listABToMapAListB(xs, base.updated(k,v::base.getOrElse(k,Nil)))
+  case Nil => base
+}
+
+  private def doConstraints(ctx:Context, t: ConstraintT, cs: List[Constraint]): Option[Context] = for {
+    newT <- t.incls(ctx, cs.map(_.asInstanceOf[t.AConstraint]))
+  } yield t.setIn(ctx,newT)
+  private def doConstraintss(ctx:Context,xs:List[(ConstraintT,List[Constraint])]):Option[Context] = xs match {
+    case (t,cs)::xs=>for {
+      a <- doConstraints(ctx,t,cs)
+      result <- doConstraintss(a, xs)
+    } yield result
+    case Nil => Some(ctx)
   }
 }
 
 final case class ContextNormalForm(constraints: HashMap[ConstraintT, Any])
 
-type State = Iterable[Context]
+type State = List[Context]
 
 implicit class StateImpl(x: State) {
   def addUnrolledGoal(goal: UnrolledGoal): State = (for {
@@ -270,7 +282,7 @@ implicit class StateImpl(x: State) {
 }
 
 // todo
-type UnrolledGoal = Iterable[Iterable[Goal]]
+type UnrolledGoal = List[List[Goal]]
 
 object UnrolledGoal {
   val Succeed: UnrolledGoal = List(List())
@@ -280,14 +292,14 @@ object UnrolledGoal {
     b <- y
   } yield a ++ b
 
-  def andUnrolledGoals(xs: Iterable[UnrolledGoal]): UnrolledGoal = xs match {
+  def andUnrolledGoals(xs: List[UnrolledGoal]): UnrolledGoal = xs match {
     case Nil => Succeed
     case x :: xs => andUnrolledGoal(andUnrolledGoals(xs), x)
   }
 
   def orUnrolledGoal(x: UnrolledGoal, y: UnrolledGoal): UnrolledGoal = x ++ y
 
-  def orUnrolledGoals(xs: Iterable[UnrolledGoal]): UnrolledGoal = xs.flatten
+  def orUnrolledGoals(xs: List[UnrolledGoal]): UnrolledGoal = xs.flatten
 
   def unrollUnrolled(x: UnrolledGoal): UnrolledGoal = orUnrolledGoals(x.map(universe => andUnrolledGoals(universe.map(_.unroll))))
 }
