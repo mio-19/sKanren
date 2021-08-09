@@ -312,6 +312,16 @@ sealed trait Goal {
 }
 
 object Goal {
+  def exists(x: Hole=>Goal): Goal = Hole.fresh(x)
+  def exists(name:String,x: Hole=>Goal):Goal=Hole.fresh(name,x)
+  def forall(x:Hole=>(Goal, Goal)):Goal = GoalNot(Goal.exists(hole=>{
+    val g = x(hole)
+    GoalAnd(g._1,GoalNot(g._2))
+  }))
+  def forall(name:String,x:Hole=>(Goal, Goal)):Goal = GoalNot(Goal.exists(name,hole=>{
+    val g = x(hole)
+    GoalAnd(g._1,GoalNot(g._2))
+  }))
 }
 
 final case class GoalConstraint(x: Constraint) extends Goal {
