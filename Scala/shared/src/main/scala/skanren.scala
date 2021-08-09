@@ -1,11 +1,14 @@
 package skanren
 
-import scala.collection.immutable.HashMap
-import izumi.reflect.macrortti.LightTypeTag
-import izumi.reflect.macrortti.LTT
-import izumi.reflect.Tag
+import scala.collection.immutable.{HashMap, HashSet}
+//import izumi.reflect.macrortti.LightTypeTag
+//import izumi.reflect.macrortti.LTT
+//import izumi.reflect.Tag
+import cats.implicits._
 
-def typeOf[T](implicit ev: Tag[T]): LightTypeTag = ev.tag
+import scala.jdk.StreamConverters.*
+
+//def typeOf[T](implicit ev: Tag[T]): LightTypeTag = ev.tag
 
 final case class UnifyNormalForm(x: Hole, y: Unifiable)
 
@@ -129,6 +132,20 @@ implicit val holeUnifitor: Unifitor[Hole] = UnifiableUnifitor[Hole]
 type UnifyResult = Option[(UnifyContext, List[UnifyNormalForm])]
 
 val UnifyResultFailure = None
+
+object Hole {
+  private var counter: Int = 0
+
+  private def gen: Int = this.synchronized {
+    val c = counter
+    counter = counter + 1
+    c
+  }
+
+  def fresh[T](x: Hole => T): T = x(Hole(Symbol("#" + gen)))
+
+  def fresh[T](name: String, x: Hole => T): T = x(Hole(Symbol(name + "#" + gen)))
+}
 
 final case class Hole(identifier: Symbol) extends Unifiable {
   def walkOption(context: UnifyContext): Option[Unifiable] = context.get(this) match {
@@ -331,11 +348,11 @@ final case class NegativeUnify(x: Unifiable, y: Unifiable) extends ConstraintOf[
 }
 
 object NotEqual extends ConstraintT {
-  override type AConstraintsInContext = Set[UnifyNormalForm]
+  override type AConstraintsInContext = Vector[UnifyNormalForm]
   override type AConstraint = NegativeUnify
   override type ReverseT = Equal.type
   override val reverse = Equal
-  override val default = Set()
+  override val default = Vector()
 
   private def toNegativeUnify(x: UnifyNormalForm): NegativeUnify = x match {
     case UnifyNormalForm(a, b) => NegativeUnify(a, b)
@@ -351,7 +368,7 @@ object NotEqual extends ConstraintT {
     }
   }
 
-  private def normal(equalCtx: UnifyContext, notEqCtx: AConstraintsInContext): Option[AConstraintsInContext] = ???
+  private def normal(equalCtx: UnifyContext, notEqCtx: AConstraintsInContext): Option[AConstraintsInContext] = notEqCtx.asJavaParStream.unordered.map(x=>norm(equalCtx,toNegativeUnify(x))).toScala(Vector).sequence.map(_.flatten)
 
   override def normalForm(ctx: Context): Option[AConstraintsInContext] = normal(Equal.getFromOrDefault(ctx), this.getFromOrDefault(ctx))
 
