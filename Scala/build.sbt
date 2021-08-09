@@ -21,6 +21,7 @@ lazy val cross = crossProject(JSPlatform, JVMPlatform).withoutSuffixFor(JVMPlatf
     libraryDependencies ++= Seq(
       //"dev.zio" %%% "izumi-reflect" % "1.1.3-RC1",
       "org.typelevel" %%% "cats-core" % "2.6.1",
+      "org.scala-lang.modules" %%% "scala-parallel-collections" % "1.0.3",
     ),
   ).
   jvmSettings(

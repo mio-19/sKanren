@@ -1,14 +1,20 @@
 package skanren
 
 import scala.collection.immutable.{HashMap, HashSet}
+import cats.implicits._
+import scala.collection.parallel.CollectionConverters._
+import scala.collection.parallel.immutable.ParVector
+
+
 //import izumi.reflect.macrortti.LightTypeTag
 //import izumi.reflect.macrortti.LTT
 //import izumi.reflect.Tag
-import cats.implicits._
-
-import scala.jdk.StreamConverters.*
-
 //def typeOf[T](implicit ev: Tag[T]): LightTypeTag = ev.tag
+
+implicit class mapSequenceParVector[T](xs:ParVector[T]) {
+  // todo: optimize me
+  def mapSequence[U](x:T=>Option[U]):Option[ParVector[U]] = xs.map(x).seq.sequence.map(_.par)
+}
 
 final case class UnifyNormalForm(x: Hole, y: Unifiable)
 
@@ -348,11 +354,11 @@ final case class NegativeUnify(x: Unifiable, y: Unifiable) extends ConstraintOf[
 }
 
 object NotEqual extends ConstraintT {
-  override type AConstraintsInContext = Vector[UnifyNormalForm]
+  override type AConstraintsInContext = ParVector[UnifyNormalForm]
   override type AConstraint = NegativeUnify
   override type ReverseT = Equal.type
   override val reverse = Equal
-  override val default = Vector()
+  override val default = ParVector()
 
   private def toNegativeUnify(x: UnifyNormalForm): NegativeUnify = x match {
     case UnifyNormalForm(a, b) => NegativeUnify(a, b)
@@ -368,8 +374,7 @@ object NotEqual extends ConstraintT {
     }
   }
 
-  private def normal(equalCtx: UnifyContext, notEqCtx: AConstraintsInContext): Option[AConstraintsInContext] = notEqCtx.asJavaParStream.unordered.map(x=>norm(equalCtx,toNegativeUnify(x))).toScala(Vector).sequence.map(_.flatten)
-
+  private def normal(equalCtx: UnifyContext, notEqCtx: AConstraintsInContext): Option[AConstraintsInContext] =notEqCtx.mapSequence(x=>norm(equalCtx,toNegativeUnify(x))).map(_.flatten)
   override def normalForm(ctx: Context): Option[AConstraintsInContext] = normal(Equal.getFromOrDefault(ctx), this.getFromOrDefault(ctx))
 
   override val ev = Ev()
