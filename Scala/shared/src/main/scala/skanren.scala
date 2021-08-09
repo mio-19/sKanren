@@ -228,15 +228,25 @@ trait ConstraintTSet extends ConstraintT {
   override def incl(ctx: Context, x: AConstraint): Option[AConstraintsInContext] = Some(getFromOrDefault(ctx).incl(x))
 }
 
+private def listABToMapASetB[A,B](xs:List[(A,B)], base: HashMap[A,HashSet[B]] = HashMap()):HashMap[A,HashSet[B]] = xs match {
+  case (k,v)::xs=> listABToMapASetB(xs, base.updated(k,base.getOrElse(k,HashSet()).incl(v)))
+  case Nil => base
+}
+
 // ctx: HashMap[(a: ConstraintT, a.AConstraintsInContext)] // todo
 final case class Context(constraints: HashMap[ConstraintT, Any], goals: Iterable[Goal]) {
   def addConstraint(x: Constraint): Option[Context] = ???
 
   def addConstraints(xs: Iterable[Constraint]): Option[Context] = ???
 
-  def addGoal(x: Goal): Option[Context] = ???
+  def addGoal(x: Goal): Option[Context] = addGoals(List(x))
 
-  def addGoals(xs: Iterable[Goal]): Option[Context] = xs.foldLeft(Some(this): Option[Context])((ctx, goal) => ctx.flatMap(_.addGoal(goal)))
+  def addGoals(xs: Iterable[Goal]): Option[Context] = {
+    val (newConstraints0, newGoals) = xs.partition(_.isInstanceOf[Constraint])
+    val newConstraints = newConstraints0.map(_.asInstanceOf[Constraint])
+    val newcs = newConstraints.map(x=>(x.t, x))
+    ???
+  }
 }
 
 final case class ContextNormalForm(constraints: HashMap[ConstraintT, Any])
