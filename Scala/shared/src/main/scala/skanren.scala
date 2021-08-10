@@ -521,7 +521,17 @@ object generators {
 implicit val SExpUnifitor: Unifitor[SExp] = UnifiableUnifitor[SExp]
 implicit val SExpReadbacker: Readbacker[SExp] = ReadbackableReadbacker[SExp]
 implicit class SExp (x: Boolean|Symbol | (SExp, SExp) | Unit | Hole) extends Unifiable with Readbackable {
-  override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = x.unify(context,other)
+  private def inner:Unifiable = x match {
+    case x:Boolean => UnifitorWrapper(x)(BooleanUnifitor)
+    case x:Symbol => UnifitorWrapper(x)(SymbolUnifitor)
+    case x:(SExp, SExp)=> Tuple2Unifiable(x)
+    case x:Unit=> UnifitorWrapper(x)(UnitUnifitor)
+    case x:Hole=> x
+  }
+  override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = other match {
+    case other: SExp => inner.unify(other.inner)
+    case other => inner.unify(other)
+  }
   override def readback(context:UnifyContext):Any = x.readback(context)
 }
 def exists(x: Hole=>Goal) = Goal(Goal.exists(x))
@@ -529,12 +539,12 @@ def exists(name:String,x: Hole=>Goal) = Goal(Goal.exists(name,x))
 def begin(xs: =>Goal*): Goal = Goal(xs.foldLeft(GoalSuccess():Goal)(GoalAnd(_,_)))
 def conde(xs: =>Goal*):Goal = Goal(xs.foldLeft(GoalFailure():Goal)(GoalOr(_,_)))
 implicit class UnifiableOps[T](x:T)(implicit ev: T <:< Unifiable) {
-  def ===[U<:Unifiable](other:U) = Unify(x,other)
-  def =/=[U<:Unifiable](other:U) = NegativeUnify(x,other)
+  def ===[U<:Unifiable](other:U) = GoalConstraint(Unify(x,other))
+  def =/=[U<:Unifiable](other:U) = GoalConstraint(NegativeUnify(x,other))
 }
 implicit class UnifitorOps[T](x:T)(implicit ev: Unifitor[T]) {
-  def ===[U<:Unifiable](other:U) = Unify(x,other)
-  def =/=[U<:Unifiable](other:U) = NegativeUnify(x,other)
+  def ===[U<:Unifiable](other:U) = GoalConstraint(Unify(x,other))
+  def =/=[U<:Unifiable](other:U) = GoalConstraint(NegativeUnify(x,other))
 }
 private def seqToSExp(xs:Seq[SExp]):SExp = xs match {
   case head +: tail => (head, seqToSExp(tail))
