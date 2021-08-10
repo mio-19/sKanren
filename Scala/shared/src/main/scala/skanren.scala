@@ -67,6 +67,10 @@ trait Unifiable {
   final def unify(other: Unifiable): UnifyResult = this.unify(UnifyContext.Default, other)
 }
 
+trait Readbackable {
+  def readback(context: UnifyContext): Any
+}
+
 trait UnifiableAtom extends Unifiable {
   override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = if (this == other) Some((context, Nil)) else None
 }
@@ -88,12 +92,12 @@ trait Unifitor[T] {
   final def unify[U](self: T, context: UnifyContext, other: Any, x: U, y: Any)(implicit u: Unifitor[U]): UnifyResult = this.unify(self, context, other, u.unify(x, context, y))
 }
 
-trait UnifitorAtom[T] extends Unifitor[T] {
-  def impl_unify(self: T, context: UnifyContext, other: Any): UnifyResult = if (self == other) Some((context, Nil)) else None
+trait Readbacker[T] {
+  def readback(self:T,context:UnifyContext):Any
 }
 
-trait AbstractUnifiableWrapper {
-
+trait UnifitorAtom[T] extends Unifitor[T] {
+  def impl_unify(self: T, context: UnifyContext, other: Any): UnifyResult = if (self == other) Some((context, Nil)) else None
 }
 
 implicit class UnifitorWrapper[T](x: T)(implicit instance: Unifitor[T]) extends Unifiable {
@@ -106,7 +110,16 @@ implicit class UnifitorWrapper[T](x: T)(implicit instance: Unifitor[T]) extends 
   override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = instance.unify(x, context, other)
 }
 
+trait ReadbackerAtom[T] extends Readbacker[T] {
+  def readback(self:T,_context:UnifyContext):Any = self
+}
+
+implicit class ReadbackerWrapper[T](x:T)(implicit instance: Readbacker[T]) extends Readbackable {
+  override def readback(context: UnifyContext): Any = instance.readback(x,context)
+}
+
 implicit object SymbolUnifitor extends UnifitorAtom[Symbol]
+implicit object SymbolReadbacker extends ReadbackerAtom[Symbol]
 
 /*
 implicit class Tuple2Unifiable[T <: Unifiable, U <: Unifiable](tuple: Tuple2[T, U]) extends Unifiable {
@@ -132,9 +145,13 @@ final class UnifiableUnifitor[T <: Unifiable] extends Unifitor[T] {
     case _ => UnifyResultFailure
   }
 }
+final class ReadbackableReadbacker[T<:Readbackable] extends Readbacker[T] {
+  override def readback(self:T,context:UnifyContext):Any = self.readback(context)
+}
 
 implicit val unifiableUnifitor: Unifitor[Unifiable] = UnifiableUnifitor[Unifiable]
 implicit val holeUnifitor: Unifitor[Hole] = UnifiableUnifitor[Hole]
+implicit val holeReadbacker: Readbacker[Hole] = ReadbackableReadbacker[Hole]
 
 type UnifyResult = Option[(UnifyContext, List[UnifyNormalForm])]
 
@@ -154,7 +171,8 @@ object Hole {
   def fresh[T](name: String, x: Hole => T): T = x(Hole(Symbol(name + "#" + gen)))
 }
 
-final case class Hole(identifier: Symbol) extends Unifiable {
+final case class Hole(identifier: Symbol) extends Unifiable with Readbackable {
+  override def readback(context:UnifyContext):Any = context.getOrElse(this, this)
   def walkOption(context: UnifyContext): Option[Unifiable] = context.get(this) match {
     case Some(next: Hole) => Some(next.walk(context))
     case Some(next) => Some(next)
@@ -332,7 +350,7 @@ sealed trait Goal {
 }
 
 object Goal {
-  def apply(x:=>Goal):Goal = GoalDelay({x})
+  def apply(x: =>Goal):Goal = GoalDelay({x})
   def exists(x: Hole=>Goal): Goal = Hole.fresh(x)
   def exists(name:String,x: Hole=>Goal):Goal=Hole.fresh(name,x)
   def implies(a:Goal, b:Goal): Goal = GoalOr(GoalNot(a),b)
