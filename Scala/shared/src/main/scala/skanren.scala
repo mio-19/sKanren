@@ -326,16 +326,17 @@ implicit class StateImpl(x: State) {
   } yield ctx.addGoals(adds)).flatten
   def addGoal(goal: Goal): State = addUnrolledGoal(UnrolledGoal.unrollN(goal))
 
-  def reduce: Option[State] = if (x.isEmpty) None else Some(x.flatMap({ case Context(constraints, goals) =>
-    val ctx0 = Context(constraints, List())
-    (for {
-      goals <- UnrolledGoal.unrollN(goals).par
-    } yield ctx0.addGoals(goals)).flatten
-  }))
+  def step: Option[State] = if (x.isEmpty) None else Some(x.flatMap({ case ctx@Context(constraints, goals) =>
+    if (goals.isEmpty) Seq(ctx) else {
+      val ctx0 = Context(constraints, List())
+      (for {
+        goals <- UnrolledGoal.unrollN(goals).par
+      } yield ctx0.addGoals(goals)).flatten
+    }}))
 
-  def run1: Option[(Seq[ContextNormalForm], State)] = this.reduce.flatMap({xs =>
+  def run1: Option[(Seq[ContextNormalForm], State)] = this.step.flatMap({xs =>
     xs.map(_.caseNormal).partition(_.isRight) match {
-      case (lefts,rights) =>{
+      case (rights,lefts) =>{
         val ctxs = lefts.map(_.left.get)
         val normals = rights.map(_.right.get)
         if (normals.isEmpty) ctxs.run1 else Some(normals.seq, ctxs)
