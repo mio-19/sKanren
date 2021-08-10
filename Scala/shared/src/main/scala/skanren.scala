@@ -137,7 +137,12 @@ final case class Tuple2Unifitor[T, U]()(implicit t: Unifitor[T], u: Unifitor[U])
   }
 }
 
+final case class Tuple2Readbacker[T,U]()(implicit t:Readbacker[T],u:Readbacker[U]) extends Readbacker[Tuple2[T,U]] {
+  override def readback(self:Tuple2[T,U],context:UnifyContext):Any = (t.readback(self._1,context),u.readback(self._2,context))
+}
+
 implicit class Tuple2Unifiable[T, U](x: Tuple2[T, U])(implicit t: Unifitor[T], u: Unifitor[U]) extends UnifitorWrapper(x)(Tuple2Unifitor()(t, u))
+implicit class Tuple2Readbackable[T,U](x:Tuple2[T,U])(implicit t:Readbacker[T],u:Readbacker[U]) extends ReadbackerWrapper(x)(Tuple2Readbacker()(t,u))
 
 final class UnifiableUnifitor[T <: Unifiable] extends Unifitor[T] {
   override def impl_unify(self: T, context: UnifyContext, other: Any): UnifyResult = other match {
