@@ -162,6 +162,7 @@ type UnifyResult = Option[(UnifyContext, List[UnifyNormalForm])]
 
 val UnifyResultFailure = None
 
+/*
 object Hole {
   private var counter: Int = 0
 
@@ -175,7 +176,13 @@ object Hole {
 
   def fresh[T](name: String, x: Hole => T): T = x(Hole(Symbol(name + "#" + gen)))
 }
+*/
 
+object Hole {
+  def fresh[T](x: Hole => T): T = x(Hole(Symbol("#" + x.hashCode)))
+
+  def fresh[T](name: String, x: Hole => T): T = x(Hole(Symbol(name + "#" + x.hashCode)))
+}
 implicit val holeUnifitor: Unifitor[Hole] = UnifiableUnifitor[Hole]
 implicit val holeReadbacker: Readbacker[Hole] = ReadbackableReadbacker[Hole]
 final case class Hole(identifier: Symbol) extends Unifiable with Readbackable {
