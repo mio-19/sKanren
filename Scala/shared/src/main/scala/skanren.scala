@@ -332,6 +332,7 @@ sealed trait Goal {
 }
 
 object Goal {
+  def apply(x:=>Goal):Goal = GoalDelay({x})
   def exists(x: Hole=>Goal): Goal = Hole.fresh(x)
   def exists(name:String,x: Hole=>Goal):Goal=Hole.fresh(name,x)
   def implies(a:Goal, b:Goal): Goal = GoalOr(GoalNot(a),b)
@@ -377,9 +378,6 @@ final class GoalDelay(generate: => Goal) extends Goal {
   override def reverse: Goal = GoalDelay(this.get.reverse)
 
   override def unroll: UnrolledGoal = List(List(this.get))
-}
-
-object Goals {
 }
 
 final case class Unify(x: Unifiable, y: Unifiable) extends ConstraintOf[Equal.type] {
