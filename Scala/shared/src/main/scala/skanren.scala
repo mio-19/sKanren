@@ -243,6 +243,7 @@ final case class Context(constraints: HashMap[ConstraintT, Any], goals: Iterable
     val newcs = Context.listABToMapAListB(newConstraints.map(x=>(x.t, x)), HashMap()).toList
     Context.doConstraintss(Context(this.constraints,newGoals),newcs)
   }
+  def toNormalIfIs: Option[ContextNormalForm] = if (goals.isEmpty) Some(ContextNormalForm(constraints)) else None
 }
 object Context {
 private def listABToMapAListB[A,B](xs:List[(A,B)], base: HashMap[A,List[B]]):HashMap[A,List[B]] = xs match {
@@ -303,6 +304,11 @@ object UnrolledGoal {
   def orUnrolledGoals(xs: List[UnrolledGoal]): UnrolledGoal = xs.flatten
 
   def unrollUnrolled(x: UnrolledGoal): UnrolledGoal = orUnrolledGoals(x.map(universe => andUnrolledGoals(universe.map(_.unroll))))
+
+  def unrollN(x: Goal): UnrolledGoal = UnrolledGoal.unrollUnrolled(UnrolledGoal.unrollUnrolled(UnrolledGoal.unrollUnrolled(UnrolledGoal.unrollUnrolled(x.unroll))))
+
+  def unrollN(x: List[Goal]): UnrolledGoal = UnrolledGoal.orUnrolledGoals(x.map(UnrolledGoal.unrollN(_)))
+  def unrollN(x:Iterable[Goal]): UnrolledGoal = UnrolledGoal.unrollN(x.toList)
 }
 
 sealed trait Goal {
