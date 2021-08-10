@@ -69,6 +69,7 @@ trait Unifiable {
 
 trait Readbackable {
   def readback(context: UnifyContext): Any
+  final def readback(context:Context):Any = this.readback(Equal.getFromOrDefault(context))
 }
 
 trait UnifiableAtom extends Unifiable {
@@ -279,6 +280,7 @@ final case class Context(constraints: HashMap[ConstraintT, Any], goals: List[Goa
   def caseNormal: Either[Context, ContextNormalForm] =if (goals.isEmpty) Right(ContextNormalForm(constraints)) else Left(this)
 }
 object Context {
+  val Empty = Context(HashMap(),List())
 private def listABToMapAListB[A,B](xs:List[(A,B)], base: HashMap[A,List[B]]):HashMap[A,List[B]] = xs match {
   case (k,v)::xs=> listABToMapAListB(xs, base.updated(k,v::base.getOrElse(k,Nil)))
   case Nil => base
@@ -299,12 +301,16 @@ private def listABToMapAListB[A,B](xs:List[(A,B)], base: HashMap[A,List[B]]):Has
 final case class ContextNormalForm(constraints: HashMap[ConstraintT, Any])
 
 type State = ParSeq[Context]
+object State {
+  val Empty = ParSeq(Context.Empty)
+}
 
 implicit class StateImpl(x: State) {
   def addUnrolledGoal(goal: UnrolledGoal): State = (for {
     adds <- goal.par
     ctx <- x
   } yield ctx.addGoals(adds)).flatten
+  def addGoal(goal: Goal): State = addUnrolledGoal(UnrolledGoal.unrollN(goal))
 
   def reduce: Option[State] = if (x.isEmpty) None else Some(x.flatMap({ case Context(constraints, goals) =>
     val ctx0 = Context(constraints, List())
@@ -361,6 +367,12 @@ sealed trait Goal {
   def reverse: Goal
 
   def unroll: UnrolledGoal
+
+  final def runAll: Seq[ContextNormalForm] = State.Empty.addGoal(this).runAll
+
+  final def &&(other:Goal):Goal=GoalAnd(this,other)
+  final def ||(other:Goal):Goal=GoalOr(this,other)
+  final def unary_! :Goal=GoalNot(this)
 }
 
 object Goal {
