@@ -396,6 +396,15 @@ final case class GoalConstraint(x: Constraint) extends Goal {
   override def unroll: UnrolledGoal = List(List(this))
 }
 
+final case class GoalSuccess() extends Goal {
+  override def reverse: Goal = GoalFailure()
+  override def unroll: UnrolledGoal = List(List())
+}
+final case class GoalFailure() extends Goal {
+  override def reverse: Goal = GoalSuccess()
+  override def unroll: UnrolledGoal = List()
+}
+
 final case class GoalOr(x: Goal, y: Goal) extends Goal {
   override def reverse: Goal = GoalAnd(x.reverse, y.reverse)
 
@@ -513,4 +522,12 @@ implicit val SExpReadbacker: Readbacker[SExp] = ReadbackableReadbacker[SExp]
 implicit class SExp (x: Symbol | (SExp, SExp) | Unit | Hole) extends Unifiable with Readbackable {
   override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = x.unify(context,other)
   override def readback(context:UnifyContext):Any = x.readback(context)
+}
+def exists(x: Hole=>Goal) = Goal(Goal.exists(x))
+def exists(name:String,x: Hole=>Goal) = Goal(Goal.exists(name,x))
+def begin(xs: =>Goal*): Goal = Goal(xs.foldLeft(GoalSuccess():Goal)(GoalAnd(_,_)))
+def conde(xs: =>Goal*):Goal = Goal(xs.foldLeft(GoalFailure():Goal)(GoalOr(_,_)))
+implicit class UnifiableOps(x:Unifiable) {
+  def ===(other:Unifiable) = Unify(x,other)
+  def =/=(other:Unifiable) = NegativeUnify(x,other)
 }
