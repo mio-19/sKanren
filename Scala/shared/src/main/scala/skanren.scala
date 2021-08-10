@@ -569,7 +569,9 @@ implicit val SExpReadbacker: Readbacker[SExp] = ReadbackableReadbacker[SExp]
   }
   sealed trait Bool extends SExp with UnifiableAtom with ReadbackableAtom
   case object True extends Bool
+  val t = True
   case object False extends Bool
+  val f = False
   final case class SExpHole(x:Hole) extends SExp with Unifiable with Readbackable with UnifiableWrapper {
     override def unbox: Unifiable = x
     override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = throw new UnsupportedOperationException()
