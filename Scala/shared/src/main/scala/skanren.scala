@@ -157,8 +157,6 @@ final class ReadbackableReadbacker[T<:Readbackable] extends Readbacker[T] {
 }
 
 implicit val unifiableUnifitor: Unifitor[Unifiable] = UnifiableUnifitor[Unifiable]
-implicit val holeUnifitor: Unifitor[Hole] = UnifiableUnifitor[Hole]
-implicit val holeReadbacker: Readbacker[Hole] = ReadbackableReadbacker[Hole]
 
 type UnifyResult = Option[(UnifyContext, List[UnifyNormalForm])]
 
@@ -178,6 +176,8 @@ object Hole {
   def fresh[T](name: String, x: Hole => T): T = x(Hole(Symbol(name + "#" + gen)))
 }
 
+implicit val holeUnifitor: Unifitor[Hole] = UnifiableUnifitor[Hole]
+implicit val holeReadbacker: Readbacker[Hole] = ReadbackableReadbacker[Hole]
 final case class Hole(identifier: Symbol) extends Unifiable with Readbackable {
   override def readback(context:UnifyContext):Any = context.getOrElse(this, this)
   def walkOption(context: UnifyContext): Option[Unifiable] = context.get(this) match {
@@ -489,6 +489,8 @@ object generators {
 }
 
 
+implicit val SExpUnifitor: Unifitor[SExp] = UnifiableUnifitor[SExp]
+implicit val SExpReadbacker: Readbacker[SExp] = ReadbackableReadbacker[SExp]
 implicit class SExp (x: Symbol | (SExp, SExp) | Unit | Hole) extends Unifiable with Readbackable {
   override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = x.unify(context,other)
   override def readback(context:UnifyContext):Any = x.readback(context)
