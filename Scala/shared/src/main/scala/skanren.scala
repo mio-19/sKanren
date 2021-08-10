@@ -489,4 +489,7 @@ object generators {
 }
 
 
-implicit class SExp (x: Symbol | (SExp, SExp) | Unit)
+implicit class SExp (x: Symbol | (SExp, SExp) | Unit | Hole) extends Unifiable with Readbackable {
+  override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = x.unify(context,other)
+  override def readback(context:UnifyContext):Any = x.readback(context)
+}
