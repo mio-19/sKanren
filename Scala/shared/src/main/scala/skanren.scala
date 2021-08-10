@@ -243,7 +243,8 @@ final case class Context(constraints: HashMap[ConstraintT, Any], goals: List[Goa
     val newcs = Context.listABToMapAListB(newConstraints.map(x=>(x.t, x)), HashMap()).toList
     Context.doConstraintss(Context(this.constraints,goals++newGoals),newcs)
   }
-  def toNormalIfIs: Option[ContextNormalForm] = if (goals.isEmpty) Some(ContextNormalForm(constraints)) else None
+  //def toNormalIfIs: Option[ContextNormalForm] = if (goals.isEmpty) Some(ContextNormalForm(constraints)) else None
+  def caseNormal: Either[Context, ContextNormalForm] =if (goals.isEmpty) Right(ContextNormalForm(constraints)) else Left(this)
 }
 object Context {
 private def listABToMapAListB[A,B](xs:List[(A,B)], base: HashMap[A,List[B]]):HashMap[A,List[B]] = xs match {
@@ -280,11 +281,19 @@ implicit class StateImpl(x: State) {
     } yield ctx0.addGoals(goals)).flatten
   }))
 
-  def run1: Option[(ContextNormalForm, State)] = ???
+  def run1: Option[(Seq[ContextNormalForm], State)] = this.reduce.flatMap({xs =>
+    xs.map(_.caseNormal).partition(_.isRight) match {
+      case (lefts,rights) =>{
+        val ctxs = lefts.map(_.left.get)
+        val normals = rights.map(_.right.get)
+        if (normals.isEmpty) ctxs.run1 else Some(normals.seq, ctxs)
+      }
+    }
+  })
 
-  def runAll: List[ContextNormalForm] = this.run1 match {
+  def runAll: Seq[ContextNormalForm] = this.run1 match {
     case None => Nil
-    case Some((x, s)) => x :: s.runAll
+    case Some((x, s)) => x ++ s.runAll
   }
 }
 
