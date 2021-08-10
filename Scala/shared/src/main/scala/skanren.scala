@@ -366,6 +366,7 @@ object UnrolledGoal {
 
   def andUnrolledGoals(xs: List[UnrolledGoal]): UnrolledGoal = xs match {
     case Nil => Succeed
+    case x :: Nil => x
     case x :: xs => andUnrolledGoal(andUnrolledGoals(xs), x)
   }
 
