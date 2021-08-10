@@ -544,11 +544,13 @@ implicit class UnifiableOps[T](x:T)(implicit ev: T <:< Unifiable) {
   def =:=[U<:Unifiable](other:U) = GoalConstraint(Unify(x,other))
   def =/=[U<:Unifiable](other:U) = GoalConstraint(NegativeUnify(x,other))
 }
+/*
 implicit class UnifitorOps[T](x:T)(implicit ev: Unifitor[T]) {
   def ===[U<:Unifiable](other:U) = GoalConstraint(Unify(x,other))
   def =:=[U<:Unifiable](other:U) = GoalConstraint(Unify(x,other))
   def =/=[U<:Unifiable](other:U) = GoalConstraint(NegativeUnify(x,other))
 }
+*/
 object sexp {
   import scala.language.implicitConversions
 implicit val SExpUnifitor: Unifitor[SExp] = UnifiableUnifitor[SExp]
