@@ -78,6 +78,7 @@ trait UnifiableWrapper extends Wrapper{
 trait Readbackable {
   def readback(context: UnifyContext): Any
   final def readback(context:Context):Any = this.readback(Equal.getFromOrDefault(context))
+  final def readback(context:ContextNormalForm):Any=this.readback(context.toContext)
 }
 
 trait UnifiableAtom extends Unifiable {
@@ -312,7 +313,9 @@ private def listABToMapAListB[A,B](xs:List[(A,B)], base: HashMap[A,List[B]]):Has
   }
 }
 
-final case class ContextNormalForm(constraints: HashMap[ConstraintT, Any])
+final case class ContextNormalForm(constraints: HashMap[ConstraintT, Any]) {
+  def toContext:Context=Context(constraints,List())
+}
 
 type State = ParSeq[Context]
 object State {
@@ -344,9 +347,9 @@ implicit class StateImpl(x: State) {
     }
   })
 
-  def runAll: Seq[ContextNormalForm] = this.run1 match {
+  def runAll: List[ContextNormalForm] = this.run1 match {
     case None => Nil
-    case Some((x, s)) => x ++ s.runAll
+    case Some((x, s)) => x.toList ++ s.runAll
   }
 }
 
@@ -383,7 +386,7 @@ sealed trait Goal {
 
   def unroll: UnrolledGoal
 
-  final def runAll: Seq[ContextNormalForm] = State.Empty.addGoal(this).runAll
+  final def runAll: List[ContextNormalForm] = State.Empty.addGoal(this).runAll
 
   final def &&(other:Goal):Goal=GoalAnd(this,other)
   final def ||(other:Goal):Goal=GoalOr(this,other)
@@ -545,6 +548,7 @@ implicit class UnifitorOps[T](x:T)(implicit ev: Unifitor[T]) {
   def =/=[U<:Unifiable](other:U) = GoalConstraint(NegativeUnify(x,other))
 }
 object sexp {
+  import scala.language.implicitConversions
 implicit val SExpUnifitor: Unifitor[SExp] = UnifiableUnifitor[SExp]
 implicit val SExpReadbacker: Readbacker[SExp] = ReadbackableReadbacker[SExp]
   sealed trait SExp extends Unifiable with Readbackable
@@ -554,8 +558,7 @@ implicit val SExpReadbacker: Readbacker[SExp] = ReadbackableReadbacker[SExp]
       case Pair(x1,y1)=>x.unify(context,x1,y,y1)
       case _ => UnifyResultFailure
     }
-    // todo
-    override def readback(context:UnifyContext):Any = (x.readback(context),y.readback(context))
+    override def readback(context:UnifyContext):Any = Pair(x.readback(context).asInstanceOf[SExp],y.readback(context).asInstanceOf[SExp])
   }
   def cons(x:SExp,y:SExp) = Pair(x,y)
   private def seq2SExp(xs:Seq[SExp]):SExp= xs match {
@@ -576,7 +579,15 @@ implicit val SExpReadbacker: Readbacker[SExp] = ReadbackableReadbacker[SExp]
   final case class SExpHole(x:Hole) extends SExp with Unifiable with Readbackable with UnifiableWrapper {
     override def unbox: Unifiable = x
     override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = throw new UnsupportedOperationException()
-    override def readback(context:UnifyContext):Any = x.readback(context)
+    override def readback(context:UnifyContext):Any = x.readback(context) match {
+      case x:Hole=> SExpHole(x)
+      case x:SExp=>x
+      case unexpected=>throw new IllegalStateException(unexpected.toString)
+    }
   }
-  implicit def hole2sexp(x:Hole):SExp = SExpHole(x)
+  implicit def hole2sexp(x:Hole):SExpHole = SExpHole(x)
+
+  def printAll(x: SExpHole=>Goal): List[SExp] = Hole.fresh(q0=>{
+    val q = hole2sexp(q0)
+    x(q).runAll.map(ctx=>q.readback(ctx).asInstanceOf[SExp])})
 }
