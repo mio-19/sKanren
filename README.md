@@ -2,6 +2,8 @@
 
 An experimental miniKanren
 
+*NOT FEATURE COMPLETE*
+
 Done:
 
 + multi-threading
