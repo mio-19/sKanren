@@ -6,7 +6,6 @@ import scala.collection.parallel.CollectionConverters._
 import scala.collection.parallel.immutable.ParVector
 import scala.collection.parallel.immutable.ParSeq
 
-
 //import izumi.reflect.macrortti.LightTypeTag
 //import izumi.reflect.macrortti.LTT
 //import izumi.reflect.Tag
@@ -120,9 +119,11 @@ implicit class ReadbackerWrapper[T](x:T)(implicit instance: Readbacker[T]) exten
 }
 
 implicit object SymbolUnifitor extends UnifitorAtom[Symbol]
-implicit object UnitUnifitor extends UnifitorAtom[Unit]
 implicit object SymbolReadbacker extends ReadbackerAtom[Symbol]
+implicit object UnitUnifitor extends UnifitorAtom[Unit]
 implicit object UnitReadbacker extends ReadbackerAtom[Unit]
+implicit object BooleanUnifitor extends UnifitorAtom[Boolean]
+implicit object BooleanReadbacker extends ReadbackerAtom[Boolean]
 
 /*
 implicit class Tuple2Unifiable[T <: Unifiable, U <: Unifiable](tuple: Tuple2[T, U]) extends Unifiable {
@@ -519,7 +520,7 @@ object generators {
 
 implicit val SExpUnifitor: Unifitor[SExp] = UnifiableUnifitor[SExp]
 implicit val SExpReadbacker: Readbacker[SExp] = ReadbackableReadbacker[SExp]
-implicit class SExp (x: Symbol | (SExp, SExp) | Unit | Hole) extends Unifiable with Readbackable {
+implicit class SExp (x: Boolean|Symbol | (SExp, SExp) | Unit | Hole) extends Unifiable with Readbackable {
   override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = x.unify(context,other)
   override def readback(context:UnifyContext):Any = x.readback(context)
 }
@@ -527,9 +528,13 @@ def exists(x: Hole=>Goal) = Goal(Goal.exists(x))
 def exists(name:String,x: Hole=>Goal) = Goal(Goal.exists(name,x))
 def begin(xs: =>Goal*): Goal = Goal(xs.foldLeft(GoalSuccess():Goal)(GoalAnd(_,_)))
 def conde(xs: =>Goal*):Goal = Goal(xs.foldLeft(GoalFailure():Goal)(GoalOr(_,_)))
-implicit class UnifiableOps(x:Unifiable) {
-  def ===(other:Unifiable) = Unify(x,other)
-  def =/=(other:Unifiable) = NegativeUnify(x,other)
+implicit class UnifiableOps[T](x:T)(implicit ev: T <:< Unifiable) {
+  def ===[U<:Unifiable](other:U) = Unify(x,other)
+  def =/=[U<:Unifiable](other:U) = NegativeUnify(x,other)
+}
+implicit class UnifitorOps[T](x:T)(implicit ev: Unifitor[T]) {
+  def ===[U<:Unifiable](other:U) = Unify(x,other)
+  def =/=[U<:Unifiable](other:U) = NegativeUnify(x,other)
 }
 private def seqToSExp(xs:Seq[SExp]):SExp = xs match {
   case head +: tail => (head, seqToSExp(tail))
