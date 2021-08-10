@@ -541,10 +541,12 @@ def begin(xs: =>Goal*): Goal = Goal(xs.foldLeft(GoalSuccess():Goal)(GoalAnd(_,_)
 def conde(xs: =>Goal*):Goal = Goal(xs.foldLeft(GoalFailure():Goal)(GoalOr(_,_)))
 implicit class UnifiableOps[T](x:T)(implicit ev: T <:< Unifiable) {
   def ===[U<:Unifiable](other:U) = GoalConstraint(Unify(x,other))
+  def =:=[U<:Unifiable](other:U) = GoalConstraint(Unify(x,other))
   def =/=[U<:Unifiable](other:U) = GoalConstraint(NegativeUnify(x,other))
 }
 implicit class UnifitorOps[T](x:T)(implicit ev: Unifitor[T]) {
   def ===[U<:Unifiable](other:U) = GoalConstraint(Unify(x,other))
+  def =:=[U<:Unifiable](other:U) = GoalConstraint(Unify(x,other))
   def =/=[U<:Unifiable](other:U) = GoalConstraint(NegativeUnify(x,other))
 }
 object sexp {
@@ -587,7 +589,7 @@ implicit val SExpReadbacker: Readbacker[SExp] = ReadbackableReadbacker[SExp]
   }
   implicit def hole2sexp(x:Hole):SExpHole = SExpHole(x)
 
-  def printAll(x: SExpHole=>Goal): List[SExp] = Hole.fresh(q0=>{
+  def printAll(x: SExpHole=>Goal): Set[SExp] = Set.empty.concat(Hole.fresh(q0=>{
     val q = hole2sexp(q0)
-    x(q).runAll.map(ctx=>q.readback(ctx).asInstanceOf[SExp])})
+    x(q).runAll.map(ctx=>q.readback(ctx).asInstanceOf[SExp])}))
 }
