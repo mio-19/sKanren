@@ -119,7 +119,9 @@ implicit class ReadbackerWrapper[T](x:T)(implicit instance: Readbacker[T]) exten
 }
 
 implicit object SymbolUnifitor extends UnifitorAtom[Symbol]
+implicit object UnitUnifitor extends UnifitorAtom[Unit]
 implicit object SymbolReadbacker extends ReadbackerAtom[Symbol]
+implicit object UnitReadbacker extends ReadbackerAtom[Unit]
 
 /*
 implicit class Tuple2Unifiable[T <: Unifiable, U <: Unifiable](tuple: Tuple2[T, U]) extends Unifiable {
@@ -462,6 +464,7 @@ object NotEqual extends ConstraintT {
   override val ev = Ev()
 }
 
+// todo
 trait Generator[T] {
   val generate: LazyList[T]
 }
@@ -484,3 +487,6 @@ implicit class GeneratorImpl[T](x: Generator[T]) {
 
 object generators {
 }
+
+
+implicit class SExp (x: Symbol | (SExp, SExp) | Unit)
