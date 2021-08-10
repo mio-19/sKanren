@@ -229,8 +229,8 @@ trait ConstraintTSet extends ConstraintT {
   override def incl(ctx: Context, x: AConstraint): Option[AConstraintsInContext] = Some(getFromOrDefault(ctx).incl(x))
 }
 
-// ctx: HashMap[(a: ConstraintT, a.AConstraintsInContext)] // todo
-final case class Context(constraints: HashMap[ConstraintT, Any], goals: Iterable[Goal]) {
+// ctx: HashMap[(a: ConstraintT, a.AConstraintsInContext)]
+final case class Context(constraints: HashMap[ConstraintT, Any], goals: List[Goal]) {
   def addConstraint(x: Constraint): Option[Context] = for {
     newT <- x.t.incl(this,x.asInstanceOf[x.t.AConstraint])
   } yield x.t.setIn(this, newT)
@@ -241,7 +241,7 @@ final case class Context(constraints: HashMap[ConstraintT, Any], goals: Iterable
     val (newConstraints0, newGoals) = xs.partition(_.isInstanceOf[GoalConstraint])
     val newConstraints = newConstraints0.map(_.asInstanceOf[GoalConstraint].x)
     val newcs = Context.listABToMapAListB(newConstraints.map(x=>(x.t, x)), HashMap()).toList
-    Context.doConstraintss(Context(this.constraints,newGoals),newcs)
+    Context.doConstraintss(Context(this.constraints,goals++newGoals),newcs)
   }
   def toNormalIfIs: Option[ContextNormalForm] = if (goals.isEmpty) Some(ContextNormalForm(constraints)) else None
 }
@@ -273,7 +273,12 @@ implicit class StateImpl(x: State) {
     ctx <- x
   } yield ctx.addGoals(adds)).flatten
 
-  def reduce: Option[State] = if (x.isEmpty) None else ???
+  def reduce: Option[State] = if (x.isEmpty) None else Some(x.flatMap({ case Context(constraints, goals) =>
+    val ctx0 = Context(constraints, List())
+    (for {
+      goals <- UnrolledGoal.unrollN(goals).par
+    } yield ctx0.addGoals(goals)).flatten
+  }))
 
   def run1: Option[(ContextNormalForm, State)] = ???
 
@@ -308,7 +313,7 @@ object UnrolledGoal {
   def unrollN(x: Goal): UnrolledGoal = UnrolledGoal.unrollUnrolled(UnrolledGoal.unrollUnrolled(UnrolledGoal.unrollUnrolled(UnrolledGoal.unrollUnrolled(x.unroll))))
 
   def unrollN(x: List[Goal]): UnrolledGoal = UnrolledGoal.orUnrolledGoals(x.map(UnrolledGoal.unrollN(_)))
-  def unrollN(x:Iterable[Goal]): UnrolledGoal = UnrolledGoal.unrollN(x.toList)
+  //def unrollN(x:Iterable[Goal]): UnrolledGoal = UnrolledGoal.unrollN(x.toList)
 }
 
 sealed trait Goal {
