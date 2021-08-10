@@ -531,3 +531,9 @@ implicit class UnifiableOps(x:Unifiable) {
   def ===(other:Unifiable) = Unify(x,other)
   def =/=(other:Unifiable) = NegativeUnify(x,other)
 }
+private def seqToSExp(xs:Seq[SExp]):SExp = xs match {
+  case head +: tail => (head, seqToSExp(tail))
+  case Seq() => ()
+}
+def list(xs:SExp*) = seqToSExp(xs)
+def cons[A,B](x:A,y:B):(A,B)=(x,y)
