@@ -238,8 +238,8 @@ final case class Context(constraints: HashMap[ConstraintT, Any], goals: Iterable
   def addGoal(x: Goal): Option[Context] = addGoals(List(x))
 
   def addGoals(xs: List[Goal]): Option[Context] = {
-    val (newConstraints0, newGoals) = xs.partition(_.isInstanceOf[Constraint])
-    val newConstraints = newConstraints0.map(_.asInstanceOf[Constraint])
+    val (newConstraints0, newGoals) = xs.partition(_.isInstanceOf[GoalConstraint])
+    val newConstraints = newConstraints0.map(_.asInstanceOf[GoalConstraint].x)
     val newcs = Context.listABToMapAListB(newConstraints.map(x=>(x.t, x)), HashMap()).toList
     Context.doConstraintss(Context(this.constraints,newGoals),newcs)
   }
