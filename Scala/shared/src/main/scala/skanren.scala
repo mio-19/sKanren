@@ -36,6 +36,8 @@ trait Unifiable {
   def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult
 
   final def unify(context: UnifyContext, other: Unifiable): UnifyResult = (this, other) match {
+    case (self:UnifiableWrapper,other)=>self.unbox.unify(context,other)
+    case (self,other:UnifiableWrapper)=>self.unify(context,other.unbox)
     case (self: Hole, other: Hole) => (self.walkOption(context), other.walkOption(context)) match {
       case (Some(self), Some(other)) => self.unify(context, other)
       case (Some(self), None) => self.unify(context, other)
@@ -66,6 +68,13 @@ trait Unifiable {
   final def unify(other: Unifiable): UnifyResult = this.unify(UnifyContext.Default, other)
 }
 
+trait Wrapper {
+  def unbox:Any
+}
+trait UnifiableWrapper extends Wrapper{
+  override def unbox:Unifiable
+}
+
 trait Readbackable {
   def readback(context: UnifyContext): Any
   final def readback(context:Context):Any = this.readback(Equal.getFromOrDefault(context))
@@ -73,6 +82,10 @@ trait Readbackable {
 
 trait UnifiableAtom extends Unifiable {
   override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = if (this == other) Some((context, Nil)) else None
+}
+
+trait ReadbackableAtom extends Readbackable {
+  override def readback(context: UnifyContext): Any = this
 }
 
 trait Unifitor[T] {
@@ -518,22 +531,6 @@ object generators {
 }
 
 
-implicit val SExpUnifitor: Unifitor[SExp] = UnifiableUnifitor[SExp]
-implicit val SExpReadbacker: Readbacker[SExp] = ReadbackableReadbacker[SExp]
-implicit class SExp (x: Boolean|Symbol | (SExp, SExp) | Unit | Hole) extends Unifiable with Readbackable {
-  private def inner:Unifiable = x match {
-    case x:Boolean => UnifitorWrapper(x)(BooleanUnifitor)
-    case x:Symbol => UnifitorWrapper(x)(SymbolUnifitor)
-    case x:(SExp, SExp)=> Tuple2Unifiable(x)
-    case x:Unit=> UnifitorWrapper(x)(UnitUnifitor)
-    case x:Hole=> x
-  }
-  override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = other match {
-    case other: SExp => inner.unify(other.inner)
-    case other => inner.unify(other)
-  }
-  override def readback(context:UnifyContext):Any = x.readback(context)
-}
 def exists(x: Hole=>Goal) = Goal(Goal.exists(x))
 def exists(name:String,x: Hole=>Goal) = Goal(Goal.exists(name,x))
 def begin(xs: =>Goal*): Goal = Goal(xs.foldLeft(GoalSuccess():Goal)(GoalAnd(_,_)))
@@ -546,9 +543,37 @@ implicit class UnifitorOps[T](x:T)(implicit ev: Unifitor[T]) {
   def ===[U<:Unifiable](other:U) = GoalConstraint(Unify(x,other))
   def =/=[U<:Unifiable](other:U) = GoalConstraint(NegativeUnify(x,other))
 }
-private def seqToSExp(xs:Seq[SExp]):SExp = xs match {
-  case head +: tail => (head, seqToSExp(tail))
-  case Seq() => ()
+object sexp {
+implicit val SExpUnifitor: Unifitor[SExp] = UnifiableUnifitor[SExp]
+implicit val SExpReadbacker: Readbacker[SExp] = ReadbackableReadbacker[SExp]
+  sealed trait SExp extends Unifiable with Readbackable
+  case object Empty extends SExp with UnifiableAtom with ReadbackableAtom
+  final case class Pair(x:SExp,y:SExp) extends SExp with Unifiable with Readbackable {
+    override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = other match {
+      case Pair(x1,y1)=>x.unify(context,x1,y,y1)
+      case _ => UnifyResultFailure
+    }
+    // todo
+    override def readback(context:UnifyContext):Any = (x.readback(context),y.readback(context))
+  }
+  def cons(x:SExp,y:SExp) = Pair(x,y)
+  private def seq2SExp(xs:Seq[SExp]):SExp= xs match {
+    case head +: tail => cons(head, seq2SExp(tail))
+    case Seq() => Empty
+  }
+  def list(xs:SExp*) = seq2SExp(xs)
+  final case class Sym(x:Symbol) extends SExp with UnifiableAtom with ReadbackableAtom
+  object Sym {
+    def apply(x:String):Sym=Sym(Symbol(x))
+    def apply(x:Symbol):Sym=new Sym(x)
+  }
+  sealed trait Bool extends SExp with UnifiableAtom with ReadbackableAtom
+  case object True extends Bool
+  case object False extends Bool
+  final case class SExpHole(x:Hole) extends SExp with Unifiable with Readbackable with UnifiableWrapper {
+    override def unbox: Unifiable = x
+    override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = throw new UnsupportedOperationException()
+    override def readback(context:UnifyContext):Any = x.readback(context)
+  }
+  implicit def hole2sexp(x:Hole):SExp = SExpHole(x)
 }
-def list(xs:SExp*) = seqToSExp(xs)
-def cons[A,B](x:A,y:B):(A,B)=(x,y)
