@@ -5,8 +5,10 @@ An experimental miniKanren
 Done:
 
 + multi-threading
-+ not
 + forall / implies
+
+Broken:
++ not
 
 Todo:
 
