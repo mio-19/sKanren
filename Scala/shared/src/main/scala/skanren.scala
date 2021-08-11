@@ -216,6 +216,7 @@ final case class Hole(identifier: Symbol) extends Unifiable with Readbackable {
   }
 
   override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = throw new IllegalStateException()
+  override def toString:String="*"+identifier.name
 }
 
 trait Constraint {
@@ -391,6 +392,7 @@ object Goal {
 
 final case class GoalConstraint(x: Constraint) extends Goal {
   override def reverse: Goal = GoalConstraint(x.reverse)
+  override def toString:String = x.toString
 }
 
 final case class GoalConde(clauses: List[List[Goal]]) extends Goal {
@@ -401,6 +403,7 @@ final case class GoalConde(clauses: List[List[Goal]]) extends Goal {
   } yield self ++ o)
    def ||(other:GoalConde):GoalConde = GoalConde(this.clauses++other.clauses)
   override def unroll: GoalConde = GoalConde.or(clauses.map(clause=>GoalConde.and(clause.map(_.unroll))))
+  override def toString:String=s"(conde ${clauses.map(_.mkString("("," ",")")).mkString(" ")})"
 }
 object GoalConde {
   def apply(clauses: List[List[Goal]]):GoalConde=new GoalConde(clauses)
@@ -425,6 +428,7 @@ final case class GoalNot(x: Goal) extends Goal {
   override def reverse: Goal = x
 
   override def unroll: GoalConde = this.get.unroll
+  override def toString:String=s"(not $x)"
 }
 
 final class GoalDelay(generate: => Goal) extends Goal {
@@ -441,6 +445,7 @@ final case class Unify(x: Unifiable, y: Unifiable) extends ConstraintOf[Equal.ty
   override def reverse: NegativeUnify = NegativeUnify(x, y)
 
   def apply(context: UnifyContext): UnifyResult = x.unify(context, y)
+  override def toString:String=s"(=== $x $y)"
 }
 
 object Equal extends ConstraintT {
@@ -462,6 +467,7 @@ final case class NegativeUnify(x: Unifiable, y: Unifiable) extends ConstraintOf[
   override val t = NotEqual
 
   override def reverse: Unify = Unify(x, y)
+  override def toString:String=s"(=/= $x $y)"
 }
 
 object NotEqual extends ConstraintT {
@@ -542,14 +548,21 @@ object sexp {
   import scala.language.implicitConversions
 implicit val SExpUnifitor: Unifitor[SExp] = UnifiableUnifitor[SExp]
 implicit val SExpReadbacker: Readbacker[SExp] = ReadbackableReadbacker[SExp]
-  sealed trait SExp extends Unifiable with Readbackable
-  case object Empty extends SExp with UnifiableAtom with ReadbackableAtom
+  sealed trait SExp extends Unifiable with Readbackable {
+    def toStringListing: String = s" . ${this.toString})"
+  }
+  case object Empty extends SExp with UnifiableAtom with ReadbackableAtom {
+    override def toStringListing: String = ")"
+    override def toString:String = "()"
+  }
   final case class Pair(x:SExp,y:SExp) extends SExp with Unifiable with Readbackable {
     override def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult = other match {
       case Pair(x1,y1)=>x.unify(context,x1,y,y1)
       case _ => UnifyResultFailure
     }
     override def readback(context:UnifyContext):Any = Pair(x.readback(context).asInstanceOf[SExp],y.readback(context).asInstanceOf[SExp])
+    override def toStringListing: String = s" $x${y.toStringListing}"
+    override def toString:String = s"`($x${y.toStringListing}"
   }
   def cons(x:SExp,y:SExp) = Pair(x,y)
   private def seq2SExp(xs:Seq[SExp]):SExp= xs match {
@@ -557,15 +570,21 @@ implicit val SExpReadbacker: Readbacker[SExp] = ReadbackableReadbacker[SExp]
     case Seq() => Empty
   }
   def list(xs:SExp*) = seq2SExp(xs)
-  final case class Sym(x:Symbol) extends SExp with UnifiableAtom with ReadbackableAtom
+  final case class Sym(x:Symbol) extends SExp with UnifiableAtom with ReadbackableAtom {
+    override def toString:String = "'"+x.name
+  }
   object Sym {
     def apply(x:String):Sym=Sym(Symbol(x))
     def apply(x:Symbol):Sym=new Sym(x)
   }
   sealed trait Bool extends SExp with UnifiableAtom with ReadbackableAtom
-  case object True extends Bool
+  case object True extends Bool {
+    override def toString:String = "#t"
+  }
   val t = True
-  case object False extends Bool
+  case object False extends Bool {
+    override def toString:String = "#f"
+  }
   val f = False
   final case class SExpHole(x:Hole) extends SExp with Unifiable with Readbackable with UnifiableWrapper {
     override def unbox: Unifiable = x
@@ -575,6 +594,7 @@ implicit val SExpReadbacker: Readbacker[SExp] = ReadbackableReadbacker[SExp]
       case x:SExp=>x
       case unexpected=>throw new IllegalStateException(unexpected.toString)
     }
+      override def toString:String = ","+x.toString
   }
   implicit def hole2sexp(x:Hole):SExpHole = SExpHole(x)
 
