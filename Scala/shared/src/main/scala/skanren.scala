@@ -16,7 +16,9 @@ implicit class mapSequenceParVector[T](xs:ParVector[T]) {
   def mapSequence[U](x:T=>Option[U]):Option[ParVector[U]] = xs.map(x).seq.sequence.map(_.par)
 }
 
-final case class UnifyNormalForm(x: Hole, y: Unifiable)
+final case class UnifyNormalForm(x: Hole, y: Unifiable) {
+  override def toString:String = s"(==n $x $y)"
+}
 
 type UnifyContext = HashMap[Hole, Unifiable]
 
@@ -273,6 +275,8 @@ trait ConstraintTSet extends ConstraintT {
 }
 
 // ctx: HashMap[(a: ConstraintT, a.AConstraintsInContext)]
+// todo: replace HashMap
+// todo: record constraint types in type?
 final case class Context(constraints: HashMap[ConstraintT, Any], goals: List[Goal]) {
   def addConstraint(x: Constraint): Option[Context] = for {
     newT <- x.t.incl(this,x.asInstanceOf[x.t.AConstraint])
