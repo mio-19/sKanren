@@ -44,6 +44,6 @@ class ExampleSpec extends AnyFlatSpec with should.Matchers {
     printAll(q=>membero(q,list(Sym("q"),Sym("o")))) should be (Set(Sym("q"),Sym("o")))
     printAll(q=>exists(d=>begin(q=/=d,membero(q,list(d,Sym("o")))))) should be (Set(Sym("o")))
     //printAll(q=>begin(!membero(q,list(Sym("b"),Sym("o"),Sym("a"))),membero(q,list(Sym("q"),Sym("o"))))) should be (Set(Sym("q")))
-    //print1(q=>begin(!membero(q,list(Sym("b"),Sym("o"),Sym("a"))),membero(q,list(Sym("q"),Sym("o"))))) should be (Some(Sym("q")))
+    print1(q=>begin(!membero(q,list(Sym("b"),Sym("o"),Sym("a"))),membero(q,list(Sym("q"),Sym("o"))))) should be (Some(Sym("q")))
   }
 }
