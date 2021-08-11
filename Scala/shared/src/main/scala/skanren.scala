@@ -398,11 +398,16 @@ final case class GoalConstraint(x: Constraint) extends Goal {
 }
 
 final case class GoalConde(clauses: List[List[Goal]]) extends Goal {
-  override def reverse: Goal = Goal.and(clauses.map(clause=>Goal.or(clause.map(_.reverse))))
+
+  //override def reverse: Goal = Goal.and(clauses.map(clause=>Goal.or(clause.map(_.reverse))))
+
+  override def reverse: Goal = GoalOr(clauses.map(GoalAnd(_))).reverse
+
    def &&(other:GoalConde):GoalConde = GoalConde(for {
     self <- this.clauses
     o <- other.clauses
   } yield self ++ o)
+
    def ||(other:GoalConde):GoalConde = GoalConde(this.clauses++other.clauses)
   override def unroll: GoalConde = GoalConde.or(clauses.map(clause=>GoalConde.and(clause.map(_.unroll))))
   override def toString:String=s"(conde ${clauses.map(_.mkString("("," ",")")).mkString(" ")})"
@@ -423,6 +428,30 @@ val Failure:GoalConde=GoalConde(List())
     case x::xs => x && GoalConde.and(xs)
     case Nil => Goal.Success
   }
+}
+
+// GoalAnd and GoalOr are created for GoalConde.reverse
+final case class GoalAnd(x:Goal,y:Goal) extends Goal {
+  override def unroll: GoalConde = GoalConde(List(List(x,y)))
+  override def reverse: Goal = GoalOr(GoalAnd(GoalNot(x),y),GoalAnd(x,GoalNot(y)))
+  override def toString:String=s"(and $x $y)"
+}
+object GoalAnd {
+  def apply(x:Goal,y:Goal): Goal = new GoalAnd(x,y)
+  def apply(xs:List[Goal]): Goal = xs match {
+    case x::Nil=>x
+    case x::xs=>apply(x,apply(xs))
+    case Nil => Goal.Success
+  }
+}
+final case class GoalOr(xs:List[Goal]) extends Goal {
+  override def unroll: GoalConde = GoalConde(xs.map(List(_)))
+  override def reverse: Goal = GoalAnd(xs.map(_.reverse))
+  override def toString:String=s"(or ${xs.mkString(" ")})"
+}
+object GoalOr {
+  def apply(xs:List[Goal]):GoalOr = new GoalOr(xs)
+  def apply(x:Goal,y:Goal):GoalOr = apply(List(x,y))
 }
 
 final case class GoalNot(x: Goal) extends Goal {
