@@ -398,7 +398,7 @@ final case class GoalConstraint(x: Constraint) extends Goal {
 }
 
 final case class GoalConde(clauses: List[List[Goal]]) extends Goal {
-  override def reverse: Goal = Goal.and(clauses.map(clause=>GoalConde.notAnd(clause)))
+  override def reverse: Goal = Goal.and(clauses.map(clause=>Goal.or(clause.map(_.reverse))))
    def &&(other:GoalConde):GoalConde = GoalConde(for {
     self <- this.clauses
     o <- other.clauses
@@ -422,13 +422,6 @@ val Failure:GoalConde=GoalConde(List())
     case x::Nil=>x
     case x::xs => x && GoalConde.and(xs)
     case Nil => Goal.Success
-  }
-  // private def notAnd(xs:List[Goal]) = Goal.or(xs.map(_.reverse))
-  private def notAnd(x:Goal,y:Goal):Goal=(x&&(!y))||((!x)&&y)||((!x)&&(!y))
-  private def notAnd(xs:List[Goal]):Goal=xs match {
-    case Nil => GoalConde.Failure
-    case x::Nil=>x.reverse
-    case x::xs => xs.foldLeft(x)(this.notAnd(_,_))
   }
 }
 
