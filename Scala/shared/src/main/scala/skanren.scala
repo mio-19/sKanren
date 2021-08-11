@@ -323,17 +323,17 @@ object State {
 }
 
 implicit class StateImpl(x: State) {
-  def addUnrolledGoal(goal: UnrolledGoal): State = (for {
-    adds <- goal.par
+  def addConde(goal: GoalConde): State = (for {
+    adds <- goal.clauses.par
     ctx <- x
   } yield ctx.addGoals(adds)).flatten
-  def addGoal(goal: Goal): State = addUnrolledGoal(UnrolledGoal.unrollN(goal))
+  def addGoal(goal: Goal): State = addConde(Goal.unrollN(goal))
 
-  def step: Option[State] = if (x.isEmpty) None else Some(x.flatMap({ case ctx@Context(constraints, goals) =>
-    if (goals.isEmpty) Seq(ctx) else {
+  def step: Option[State] = if (x.isEmpty) None else Some(x.flatMap({ case ctx@Context(constraints, goals0) =>
+    if (goals0.isEmpty) Seq(ctx) else {
       val ctx0 = Context(constraints, List())
       (for {
-        goals <- UnrolledGoal.unrollN(goals).par
+        goals <- Goal.unrollN(goals0).clauses.par
       } yield ctx0.addGoals(goals)).flatten
     }}))
 
@@ -353,44 +353,15 @@ implicit class StateImpl(x: State) {
   }
 }
 
-// todo
-type UnrolledGoal = List[List[Goal]]
-
-object UnrolledGoal {
-  val Succeed: UnrolledGoal = List(List())
-
-  def andUnrolledGoal(x: UnrolledGoal, y: UnrolledGoal): UnrolledGoal = for {
-    a <- x
-    b <- y
-  } yield a ++ b
-
-  def andUnrolledGoals(xs: List[UnrolledGoal]): UnrolledGoal = xs match {
-    case Nil => Succeed
-    case x :: Nil => x
-    case x :: xs => andUnrolledGoal(andUnrolledGoals(xs), x)
-  }
-
-  def orUnrolledGoal(x: UnrolledGoal, y: UnrolledGoal): UnrolledGoal = x ++ y
-
-  def orUnrolledGoals(xs: List[UnrolledGoal]): UnrolledGoal = xs.flatten
-
-  def unrollUnrolled(x: UnrolledGoal): UnrolledGoal = orUnrolledGoals(x.map(universe => andUnrolledGoals(universe.map(_.unroll))))
-
-  def unrollN(x: Goal): UnrolledGoal = UnrolledGoal.unrollUnrolled(UnrolledGoal.unrollUnrolled(UnrolledGoal.unrollUnrolled(UnrolledGoal.unrollUnrolled(x.unroll))))
-
-  def unrollN(x: List[Goal]): UnrolledGoal = UnrolledGoal.orUnrolledGoals(x.map(UnrolledGoal.unrollN(_)))
-  //def unrollN(x:Iterable[Goal]): UnrolledGoal = UnrolledGoal.unrollN(x.toList)
-}
-
 sealed trait Goal {
   def reverse: Goal
 
-  def unroll: UnrolledGoal
+  def unroll: GoalConde = GoalConde(List(List(this)))
 
   final def runAll: List[ContextNormalForm] = State.Empty.addGoal(this).runAll
 
-  final def &&(other:Goal):Goal=GoalAnd(this,other)
-  final def ||(other:Goal):Goal=GoalOr(this,other)
+  final def &&(other:Goal):Goal=Goal.and(List(this,other))
+  final def ||(other:Goal):Goal=Goal.or(List(this,other))
   final def unary_! :Goal=GoalNot(this)
 }
 
@@ -398,7 +369,7 @@ object Goal {
   def apply(x: =>Goal):Goal = GoalDelay({x})
   def exists(x: Hole=>Goal): Goal = Hole.fresh(x)
   def exists(name:String,x: Hole=>Goal):Goal=Hole.fresh(name,x)
-  def implies(a:Goal, b:Goal): Goal = GoalOr(GoalNot(a),b)
+  def implies(a:Goal, b:Goal): Goal = (!a)||b
   def forall(x:Hole=>(Goal, Goal)):Goal = Goal.exists( hole => {
     val g = x(hole)
     Goal.implies(g._1,g._2)
@@ -407,33 +378,45 @@ object Goal {
     val g = x(hole)
     Goal.implies(g._1,g._2)
   })
+  def or(xs:List[Goal]):Goal=GoalConde(xs.map(List(_)))
+  def or(xs:Seq[Goal]):Goal=or(xs.toList)
+  def and(xs:List[Goal]):Goal=GoalConde(List(xs))
+  def and(xs:Seq[Goal]):Goal=and(xs.toList)
+  val Success = GoalConde.Success
+  val Failure = GoalConde.Failure
+  def unrollN(x:Goal):GoalConde = x.unroll.unroll.unroll.unroll.unroll.unroll.unroll.unroll
+  def unrollN(xs:ParSeq[Goal]):GoalConde = if (xs.isEmpty) throw new IllegalArgumentException() else xs.map(Goal.unrollN(_)).reduce(_&&_)
+  def unrollN(xs:List[Goal]):GoalConde = unrollN(xs.par)
 }
 
 final case class GoalConstraint(x: Constraint) extends Goal {
   override def reverse: Goal = GoalConstraint(x.reverse)
-
-  override def unroll: UnrolledGoal = List(List(this))
 }
 
-final case class GoalSuccess() extends Goal {
-  override def reverse: Goal = GoalFailure()
-  override def unroll: UnrolledGoal = List(List())
+final case class GoalConde(clauses: List[List[Goal]]) extends Goal {
+  override def reverse: Goal = Goal.and(clauses.map(clause=>Goal.or(clause.map(_.reverse))))
+   def &&(other:GoalConde):GoalConde = GoalConde(for {
+    self <- this.clauses
+    o <- other.clauses
+  } yield self ++ o)
+   def ||(other:GoalConde):GoalConde = GoalConde(this.clauses++other.clauses)
+  override def unroll: GoalConde = GoalConde.or(clauses.map(clause=>GoalConde.and(clause.map(_.unroll))))
 }
-final case class GoalFailure() extends Goal {
-  override def reverse: Goal = GoalSuccess()
-  override def unroll: UnrolledGoal = List()
-}
-
-final case class GoalOr(x: Goal, y: Goal) extends Goal {
-  override def reverse: Goal = GoalAnd(x.reverse, y.reverse)
-
-  override def unroll: UnrolledGoal = List(List(x), List(y))
-}
-
-final case class GoalAnd(x: Goal, y: Goal) extends Goal {
-  override def reverse: Goal = GoalOr(x.reverse, y.reverse)
-
-  override def unroll: UnrolledGoal = List(List(x, y))
+object GoalConde {
+  def apply(clauses: List[List[Goal]]):GoalConde=new GoalConde(clauses)
+    def apply(clauses: Seq[List[Goal]]):GoalConde=apply(clauses.toList)
+val Success :GoalConde= GoalConde(List(List()))
+val Failure:GoalConde=GoalConde(List())
+  def or(xs:List[GoalConde]):GoalConde = xs match {
+    case x :: Nil => x
+    case x :: xs => x || GoalConde.or(xs)
+    case Nil => Goal.Failure
+  }
+  def and(xs:List[GoalConde]):GoalConde = xs match {
+    case x::Nil=>x
+    case x::xs => x && GoalConde.and(xs)
+    case Nil => Goal.Success
+  }
 }
 
 final case class GoalNot(x: Goal) extends Goal {
@@ -441,15 +424,15 @@ final case class GoalNot(x: Goal) extends Goal {
 
   override def reverse: Goal = x
 
-  override def unroll: UnrolledGoal = List(List(this.get))
+  override def unroll: GoalConde = this.get.unroll
 }
 
 final class GoalDelay(generate: => Goal) extends Goal {
   lazy val get = generate
 
-  override def reverse: Goal = GoalDelay(this.get.reverse)
+  override def reverse: Goal = this.get.reverse
 
-  override def unroll: UnrolledGoal = List(List(this.get))
+  override def unroll: GoalConde = this.get.unroll
 }
 
 final case class Unify(x: Unifiable, y: Unifiable) extends ConstraintOf[Equal.type] {
@@ -536,10 +519,13 @@ object generators {
 }
 
 
+import scala.annotation.targetName
+
 def exists(x: Hole=>Goal) = Goal(Goal.exists(x))
 def exists(name:String,x: Hole=>Goal) = Goal(Goal.exists(name,x))
-def begin(xs: =>Goal*): Goal = Goal(xs.foldLeft(GoalSuccess():Goal)(GoalAnd(_,_)))
-def conde(xs: =>Goal*):Goal = Goal(xs.foldLeft(GoalFailure():Goal)(GoalOr(_,_)))
+def begin(xs: =>Goal*): Goal = Goal.and(xs)
+def conde(xs: =>List[Goal]*):Goal = GoalConde(xs)
+@targetName("condeOr") def conde(xs: =>Goal*):Goal = Goal.or(xs)
 implicit class UnifiableOps[T](x:T)(implicit ev: T <:< Unifiable) {
   def ===[U<:Unifiable](other:U) = GoalConstraint(Unify(x,other))
   def =:=[U<:Unifiable](other:U) = GoalConstraint(Unify(x,other))
