@@ -178,26 +178,20 @@ type UnifyResult = Option[(UnifyContext, List[UnifyNormalForm])]
 
 val UnifyResultFailure = None
 
-/*
-object Hole {
+private object Counter {
   private var counter: Int = 0
+   def gen: Int = this.synchronized {
+      val c = counter
+      counter = counter + 1
+      c
+    }
 
-  private def gen: Int = this.synchronized {
-    val c = counter
-    counter = counter + 1
-    c
-  }
-
-  def fresh[T](x: Hole => T): T = x(Hole(Symbol("#" + gen)))
-
-  def fresh[T](name: String, x: Hole => T): T = x(Hole(Symbol(name + "#" + gen)))
 }
-*/
 
 object Hole {
-  def fresh[T](x: Hole => T): T = x(Hole(Symbol("#" + x.hashCode.toHexString)))
+  def fresh[T](x: Hole => T): T = x(Hole(Symbol("#" + Counter.gen.toHexString))) // x.hashCode.toHexString
 
-  def fresh[T](name: String, x: Hole => T): T = x(Hole(Symbol(name + "#" + x.hashCode.toHexString)))
+  def fresh[T](name: String, x: Hole => T): T = x(Hole(Symbol(name + "#" + Counter.gen.toHexString))) // x.hashCode.toHexString
 }
 implicit val holeUnifitor: Unifitor[Hole] = UnifiableUnifitor[Hole]
 implicit val holeReadbacker: Readbacker[Hole] = ReadbackableReadbacker[Hole]
@@ -357,7 +351,7 @@ implicit class StateImpl(x: State) {
 sealed trait Goal {
   def reverse: Goal
 
-  def unroll: GoalConde = GoalConde(List(List(this)))
+  def unroll: GoalConde = GoalConde(this)
 
   final def runAll: List[ContextNormalForm] = State.Empty.addGoal(this).runAll
 
@@ -437,7 +431,7 @@ final class GoalDelay(generate: => Goal) extends Goal {
 
   override def reverse: Goal = GoalDelay(this.get.reverse)
 
-  override def unroll: GoalConde = GoalConde(GoalDelay(this.get.unroll))
+  override def unroll: GoalConde = GoalConde(this.get)
 }
 
 final case class Unify(x: Unifiable, y: Unifiable) extends ConstraintOf[Equal.type] {
