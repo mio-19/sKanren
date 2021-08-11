@@ -195,9 +195,9 @@ object Hole {
 */
 
 object Hole {
-  def fresh[T](x: Hole => T): T = x(Hole(Symbol("#" + x.hashCode)))
+  def fresh[T](x: Hole => T): T = x(Hole(Symbol("#" + x.hashCode.toHexString)))
 
-  def fresh[T](name: String, x: Hole => T): T = x(Hole(Symbol(name + "#" + x.hashCode)))
+  def fresh[T](name: String, x: Hole => T): T = x(Hole(Symbol(name + "#" + x.hashCode.toHexString)))
 }
 implicit val holeUnifitor: Unifitor[Hole] = UnifiableUnifitor[Hole]
 implicit val holeReadbacker: Readbacker[Hole] = ReadbackableReadbacker[Hole]
@@ -549,10 +549,11 @@ object sexp {
 implicit val SExpUnifitor: Unifitor[SExp] = UnifiableUnifitor[SExp]
 implicit val SExpReadbacker: Readbacker[SExp] = ReadbackableReadbacker[SExp]
   sealed trait SExp extends Unifiable with Readbackable {
-    def toStringListing: String = s" . ${this.toString})"
+    def quasiStrList: String = s" . ${this.quasiquoteString})"
+    def quasiquoteString:String = this.toString
   }
   case object Empty extends SExp with UnifiableAtom with ReadbackableAtom {
-    override def toStringListing: String = ")"
+    override def quasiStrList: String = ")"
     override def toString:String = "()"
   }
   final case class Pair(x:SExp,y:SExp) extends SExp with Unifiable with Readbackable {
@@ -561,8 +562,9 @@ implicit val SExpReadbacker: Readbacker[SExp] = ReadbackableReadbacker[SExp]
       case _ => UnifyResultFailure
     }
     override def readback(context:UnifyContext):Any = Pair(x.readback(context).asInstanceOf[SExp],y.readback(context).asInstanceOf[SExp])
-    override def toStringListing: String = s" $x${y.toStringListing}"
-    override def toString:String = s"`($x${y.toStringListing}"
+    override def quasiStrList: String = s" ${x.quasiquoteString}${y.quasiStrList}"
+    override def quasiquoteString:String = s"(${x.quasiquoteString}${y.quasiStrList}"
+    override def toString:String = "`"+this.quasiquoteString
   }
   def cons(x:SExp,y:SExp) = Pair(x,y)
   private def seq2SExp(xs:Seq[SExp]):SExp= xs match {
@@ -571,7 +573,8 @@ implicit val SExpReadbacker: Readbacker[SExp] = ReadbackableReadbacker[SExp]
   }
   def list(xs:SExp*) = seq2SExp(xs)
   final case class Sym(x:Symbol) extends SExp with UnifiableAtom with ReadbackableAtom {
-    override def toString:String = "'"+x.name
+    override def quasiquoteString:String = x.name
+    override def toString:String = "'"+this.quasiquoteString
   }
   object Sym {
     def apply(x:String):Sym=Sym(Symbol(x))
@@ -594,7 +597,8 @@ implicit val SExpReadbacker: Readbacker[SExp] = ReadbackableReadbacker[SExp]
       case x:SExp=>x
       case unexpected=>throw new IllegalStateException(unexpected.toString)
     }
-      override def toString:String = ","+x.toString
+      override def toString:String = x.toString
+      override def quasiquoteString:String = ","+x.toString
   }
   implicit def hole2sexp(x:Hole):SExpHole = SExpHole(x)
 
