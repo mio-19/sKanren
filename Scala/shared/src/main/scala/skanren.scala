@@ -285,7 +285,10 @@ final case class Context(constraints: HashMap[ConstraintT, Any], goals: List[Goa
     val newConstraints = newConstraints0.map(_.asInstanceOf[GoalConstraint].x)
     val newcs = Context.listABToMapAListB(newConstraints.map(x=>(x.t, x)), HashMap()).toList
     Context.doConstraintss(Context(this.constraints,goals++newGoals),newcs)
-  }
+  }.flatMap(_.stepConstraints)
+  def stepConstraints: Option[Context] = for {
+    newC <- constraints.keys.toList.map(t=>t.normalForm(this).map((t,_))).sequence
+  } yield Context(HashMap.empty.concat(newC),goals)
   //def toNormalIfIs: Option[ContextNormalForm] = if (goals.isEmpty) Some(ContextNormalForm(constraints)) else None
   def caseNormal: Either[Context, ContextNormalForm] =if (goals.isEmpty) Right(ContextNormalForm(constraints)) else Left(this)
 }
