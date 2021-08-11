@@ -37,7 +37,7 @@ implicit class UnifyContextImpl(ctx: UnifyContext) {
 trait Unifiable {
   def impl_unify(context: UnifyContext, other: Unifiable): UnifyResult
 
-  final def unify(context: UnifyContext, other: Unifiable): UnifyResult = (this, other) match {
+  final def unify(context: UnifyContext, other: Unifiable): UnifyResult = if(this==other) Some((context, Nil)) else (this, other) match {
     case (self:UnifiableWrapper,other)=>self.unbox.unify(context,other)
     case (self,other:UnifiableWrapper)=>self.unify(context,other.unbox)
     case (self: Hole, other: Hole) => (self.walkOption(context), other.walkOption(context)) match {
