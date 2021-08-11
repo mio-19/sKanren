@@ -406,6 +406,7 @@ final case class GoalConde(clauses: List[List[Goal]]) extends Goal {
   override def toString:String=s"(conde ${clauses.map(_.mkString("("," ",")")).mkString(" ")})"
 }
 object GoalConde {
+  def apply(x:Goal):GoalConde = apply(List(List(x)))
   def apply(clauses: List[List[Goal]]):GoalConde=new GoalConde(clauses)
     def apply(clauses: Seq[List[Goal]]):GoalConde=apply(clauses.toList)
 val Success :GoalConde= GoalConde(List(List()))
@@ -434,9 +435,9 @@ final case class GoalNot(x: Goal) extends Goal {
 final class GoalDelay(generate: => Goal) extends Goal {
   lazy val get = generate
 
-  override def reverse: Goal = this.get.reverse
+  override def reverse: Goal = GoalDelay(this.get.reverse)
 
-  override def unroll: GoalConde = this.get.unroll
+  override def unroll: GoalConde = GoalConde(GoalDelay(this.get.unroll))
 }
 
 final case class Unify(x: Unifiable, y: Unifiable) extends ConstraintOf[Equal.type] {
