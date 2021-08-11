@@ -361,6 +361,7 @@ sealed trait Goal {
   def unroll: GoalConde = GoalConde(this)
 
   final def runAll: List[ContextNormalForm] = State.Empty.addGoal(this).runAll
+  final def run1= State.Empty.addGoal(this).run1
 
   final def &&(other:Goal):Goal=Goal.and(List(this,other))
   final def ||(other:Goal):Goal=Goal.or(List(this,other))
@@ -607,4 +608,7 @@ implicit val SExpReadbacker: Readbacker[SExp] = ReadbackableReadbacker[SExp]
   def printAll(x: SExpHole=>Goal): Set[SExp] = Set.empty.concat(Hole.fresh(q0=>{
     val q = hole2sexp(q0)
     x(q).runAll.map(ctx=>q.readback(ctx).asInstanceOf[SExp])}))
+  def print1(x: SExpHole=>Goal): Option[SExp] = Hole.fresh(q0=>{
+    val q = hole2sexp(q0)
+    x(q).run1.map(_._1(0)).map(ctx=>q.readback(ctx).asInstanceOf[SExp])})
 }
