@@ -73,7 +73,7 @@ final case class Universe(context: Context, goals: Vector[Goal], negState: NegSt
 // Every NegUniverse must not hold.
 type NegState = Vector[NegUniverse]
 
-final case class NegUniverse(negContext: NegContext, negGoals: Vector[Goal], negState: NegState)
+final case class NegUniverse(negContext: NegContext, negGoals: Vector[Goal])
 
 type State = Vector[Universe]
 
