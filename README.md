@@ -2,7 +2,9 @@
 
 An experimental miniKanren
 
-Done:
+~~Done:~~
+
+Rewriting ...
 
 + multi-threading
 + forall / implies
