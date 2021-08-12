@@ -73,7 +73,7 @@ final case class Universe(context: Context, goals: Vector[Goal], negState: NegSt
 // Every NegUniverse must not hold.
 type NegState = Vector[NegUniverse]
 
-final case class NegUniverse(negContext: NegContext, negGoals: Vector[Goal])
+final case class NegUniverse(negContext: NegContext, negGoals: Vector[Goal], negState: NegState)
 
 type State = Vector[Universe]
 
@@ -101,7 +101,6 @@ trait ConstraintKind {
   protected val ev: Ev
 
   import ConstraintKind.this.ev.a
-
 }
 
 type UnificationContext = HashMap[Hole, Unifiable]
