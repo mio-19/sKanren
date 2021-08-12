@@ -49,10 +49,14 @@ final case class GoalConstraint(x: Constraint[_]) extends Goal {
 }
 
 // todo
-final case class Context() {
-  def getConstraintKind(kind: ConstraintKind): kind.ContextT = ???
+type Context = HashMap[ConstraintKind, Any]
 
-  def updatedConstraintKind(kind: ConstraintKind, ctx: kind.ContextT): Context = ???
+implicit class ContextOps(map: Context) {
+  def getConstraintKind(kind: ConstraintKind): kind.ContextT = map.getOrElse(kind, kind.empty).asInstanceOf[kind.ContextT]
+
+  def updatedConstraintKind(kind: ConstraintKind, ctx: kind.ContextT): Context = map.updated(kind, ctx)
+
+  def mapConstraintKind(kind: ConstraintKind, f: kind.ContextT => kind.ContextT): Context = this.updatedConstraintKind(kind, f(this.getConstraintKind(kind)))
 }
 
 final case class Universe(context: Context, goals: Vector[Goal], negConde: Vector[Vector[Goal]])
@@ -73,12 +77,14 @@ trait ConstraintKind {
 
   def addAdditionals(context: Context, xs: Vector[AdditionalConstraintT]): Option[(ContextT, Vector[AdditionalConstraintT])]
 
+  // called when other Constraints are changed
+  def step(context: Context): Option[ContextT] = Some(context.getConstraintKind(this))
+
   protected final class Ev(implicit a: ConstraintT <:< Constraint[this.type])
 
   protected val ev: Ev
 
   import ConstraintKind.this.ev.a
-
 }
 
 type UnificationContext = HashMap[Hole, Unifiable]
