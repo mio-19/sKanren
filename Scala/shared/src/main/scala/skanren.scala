@@ -56,6 +56,8 @@ implicit class ContextOps(map: Context) {
   def updatedByKind(kind: ConstraintKind, ctx: kind.ContextT): Context = map.updated(kind, ctx)
 
   def mapByKind(kind: ConstraintKind, f: kind.ContextT => kind.ContextT): Context = this.updatedByKind(kind, f(this.getByKind(kind)))
+
+  def step: Option[Context] = map.keys.map(kind => kind.step(map).map(ctx => (kind, ctx))).toVector.sequence.map(HashMap.empty.concat(_))
 }
 
 type NegContext = HashMap[ConstraintKind, Vector[Any]]
@@ -68,7 +70,9 @@ implicit class NegContextOps(map: NegContext) {
   def mapByKind(kind: ConstraintKind, f: kind.AdditionalsT => kind.AdditionalsT): NegContext = this.updatedByKind(kind, f(this.getByKind(kind)))
 }
 
-final case class Universe(context: Context, goals: Vector[Goal], negState: NegState)
+final case class Universe(context: Context, goals: Vector[Goal], negState: NegState) {
+
+}
 
 // Every NegUniverse must not hold.
 type NegState = Vector[NegUniverse]
@@ -101,6 +105,7 @@ trait ConstraintKind {
   protected val ev: Ev
 
   import ConstraintKind.this.ev.a
+
 }
 
 type UnificationContext = HashMap[Hole, Unifiable]
