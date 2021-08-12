@@ -55,6 +55,10 @@ final case class Context() {
   def updatedConstraintKind(kind: ConstraintKind, ctx: kind.ContextT): Context = ???
 }
 
+final case class Universe(context: Context, goals: Vector[Goal], negConde: Vector[Vector[Goal]])
+
+type State = Vector[Universe]
+
 trait Constraint[Kind <: ConstraintKind] {
   val kind: Kind
 }
