@@ -48,18 +48,32 @@ final case class GoalConstraint(x: Constraint[_]) extends Goal {
   override def toString: String = x.toString
 }
 
-// todo
 type Context = HashMap[ConstraintKind, Any]
 
 implicit class ContextOps(map: Context) {
-  def getConstraintKind(kind: ConstraintKind): kind.ContextT = map.getOrElse(kind, kind.empty).asInstanceOf[kind.ContextT]
+  def getByKind(kind: ConstraintKind): kind.ContextT = map.getOrElse(kind, kind.empty).asInstanceOf[kind.ContextT]
 
-  def updatedConstraintKind(kind: ConstraintKind, ctx: kind.ContextT): Context = map.updated(kind, ctx)
+  def updatedByKind(kind: ConstraintKind, ctx: kind.ContextT): Context = map.updated(kind, ctx)
 
-  def mapConstraintKind(kind: ConstraintKind, f: kind.ContextT => kind.ContextT): Context = this.updatedConstraintKind(kind, f(this.getConstraintKind(kind)))
+  def mapByKind(kind: ConstraintKind, f: kind.ContextT => kind.ContextT): Context = this.updatedByKind(kind, f(this.getByKind(kind)))
 }
 
-final case class Universe(context: Context, goals: Vector[Goal], negConde: Vector[Vector[Goal]])
+type NegContext = HashMap[ConstraintKind, Vector[Any]]
+
+implicit class NegContextOps(map: NegContext) {
+  def getByKind(kind: ConstraintKind): kind.AdditionalsT = map.getOrElse(kind, kind.emptyAdditionals).asInstanceOf[kind.AdditionalsT]
+
+  def updatedByKind(kind: ConstraintKind, x: kind.AdditionalsT): NegContext = map.updated(kind, x)
+
+  def mapByKind(kind: ConstraintKind, f: kind.AdditionalsT => kind.AdditionalsT): NegContext = this.updatedByKind(kind, f(this.getByKind(kind)))
+}
+
+final case class Universe(context: Context, goals: Vector[Goal], negState: NegState)
+
+// Every NegUniverse must not hold.
+type NegState = Vector[NegUniverse]
+
+final case class NegUniverse(negContext: NegContext, negGoals: Vector[Goal])
 
 type State = Vector[Universe]
 
@@ -72,19 +86,22 @@ trait ConstraintKind {
   val empty: ContextT
   type ConstraintT
   type AdditionalConstraintT
+  final type AdditionalsT = Vector[AdditionalConstraintT]
+  final val emptyAdditionals: AdditionalsT = Vector()
 
-  def addConstraints(context: Context, xs: Vector[ConstraintT]): Option[(ContextT, Vector[AdditionalConstraintT])]
+  def addConstraints(context: Context, xs: Vector[ConstraintT]): Option[(ContextT, AdditionalsT)]
 
-  def addAdditionals(context: Context, xs: Vector[AdditionalConstraintT]): Option[(ContextT, Vector[AdditionalConstraintT])]
+  def addAdditionals(context: Context, xs: AdditionalsT): Option[(ContextT, AdditionalsT)]
 
   // called when other Constraints are changed
-  def step(context: Context): Option[ContextT] = Some(context.getConstraintKind(this))
+  def step(context: Context): Option[ContextT] = Some(context.getByKind(this))
 
   protected final class Ev(implicit a: ConstraintT <:< Constraint[this.type])
 
   protected val ev: Ev
 
   import ConstraintKind.this.ev.a
+
 }
 
 type UnificationContext = HashMap[Hole, Unifiable]
