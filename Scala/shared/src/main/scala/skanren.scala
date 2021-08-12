@@ -57,11 +57,13 @@ implicit class ContextOps(map: Context) {
 
   def mapByKind(kind: ConstraintKind, f: kind.ContextT => kind.ContextT): Context = this.updatedByKind(kind, f(this.getByKind(kind)))
 
-  def step: Option[Context] = map.keys.map(kind => kind.step(map).map(ctx => (kind, ctx))).toVector.sequence.map(HashMap.empty.concat(_))
+  protected def step: Option[Context] = map.keys.map(kind => kind.step(map).map(ctx => (kind, ctx))).toVector.sequence.map(HashMap.empty.concat(_))
 
-  protected def addConstraintsByKind(kind: ConstraintKind, xs: Vector[Constraint[_]]): Option[Context] = kind.addConstraints(map, xs.asInstanceOf[Vector[kind.ConstraintT]]).map(r => this.updatedByKind(kind, r._1))
+  protected def addConstraintsByKind(kind: ConstraintKind, xs: Vector[Constraint[_]]): Option[Context] = kind.addConstraints_Context(map, xs.asInstanceOf[Vector[kind.ConstraintT]]).map(r => this.updatedByKind(kind, r))
 
-  def addConstraints(xs: Vector[Constraint[_]]): Option[Context] = xs.groupBy(x => x.kind: ConstraintKind).foldLeft(Some(map): Option[Context])((ctx, kindXs) => ctx.flatMap(_.addConstraintsByKind(kindXs._1, kindXs._2)))
+  private[skanren] def addConstraints(adds: Map[ConstraintKind, Vector[Constraint[_]]]): Option[Context] = adds.foldLeft(Some(map): Option[Context])((ctx, kindXs) => ctx.flatMap(_.addConstraintsByKind(kindXs._1, kindXs._2))).flatMap(_.step)
+
+  def addConstraints(xs: Vector[Constraint[_]]): Option[Context] = this.addConstraints(xs.groupBy(x => x.kind: ConstraintKind))
 }
 
 type NegContext = HashMap[ConstraintKind, Vector[Any]]
@@ -72,14 +74,20 @@ implicit class NegContextOps(map: NegContext) {
   def updatedByKind(kind: ConstraintKind, x: kind.AdditionalsT): NegContext = map.updated(kind, x)
 
   def mapByKind(kind: ConstraintKind, f: kind.AdditionalsT => kind.AdditionalsT): NegContext = this.updatedByKind(kind, f(this.getByKind(kind)))
+
+  protected def step(context: Context): Option[(NegContext, Context)] = ???
+
+  def addConstraints(context: Context, xs: Vector[Constraint[_]]): Option[(NegContext, Context)] = ???
 }
 
 final case class Universe(context: Context, goals: Vector[Goal], negState: NegState) {
+  def asContextIfIs: Option[Context] = if(goals.isEmpty&&negState.isEmpty) Some(context) else None
 }
 
 // Every NegUniverse must not hold.
 type NegState = Vector[NegUniverse]
 
+// If a negation is found in a NegUniverse, the Universe will split - the negation is true or false.
 final case class NegUniverse(negContext: NegContext, negGoals: Vector[Goal])
 
 type State = Vector[Universe]
@@ -97,6 +105,8 @@ trait ConstraintKind {
   final val emptyAdditionals: AdditionalsT = Vector()
 
   def addConstraints(context: Context, xs: Vector[ConstraintT]): Option[(ContextT, AdditionalsT)]
+
+  final def addConstraints_Context(context: Context, xs: Vector[ConstraintT]): Option[ContextT] = this.addConstraints(context, xs).map(_._1)
 
   def addAdditionals(context: Context, xs: AdditionalsT): Option[(ContextT, AdditionalsT)]
 
@@ -182,6 +192,8 @@ trait Unifiable {
       }
     }
   }
+
+  final def unify_Context(context: UnificationContext, other: Unifiable): Option[UnificationContext] = this.unify(context, other).map(_._1)
 }
 
 trait Wrapper {
