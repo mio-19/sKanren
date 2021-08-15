@@ -76,3 +76,6 @@ final case class Exists(x: Var, body: ExpGoal) extends ExpGoal
 final case class Context()
 
 final case class Definitions(xs: List[(Var, ExpValue)])
+
+// todo
+final case class Universe()
