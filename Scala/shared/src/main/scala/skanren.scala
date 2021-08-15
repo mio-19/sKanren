@@ -46,7 +46,7 @@ sealed trait ExpGoal
 
 sealed trait ExpValue
 
-final case class Quote(x: Atom) extends ExpValue
+final case class Quote(x: Value) extends ExpValue
 
 case object QuoteNonEmptyList extends ExpValue
 
