@@ -16,7 +16,7 @@ sealed trait Relation extends Value {
   def apply(xs: List[Value]): Goal = ???
 }
 
-final case class InterpretedRelation(context: Context, args: List[Var], body: Exp) extends Relation
+final case class InterpretedRelation(context: Context, args: List[Var], body: ExpGoal) extends Relation
 
 final case class HostRelation(x: List[Value] => Goal) extends Relation
 
@@ -24,9 +24,15 @@ sealed trait Goal extends Value
 
 final case class GoalConde(clauses: List[Goal]) extends Goal
 
-final case class GoalEqual(x: Value, y: Value) extends Goal
+sealed trait GoalConstraint extends Goal
 
-final case class GoalNotEqual(x: Value, y: Value) extends Goal
+final case class GoalEqual(x: Value, y: Value) extends GoalConstraint
+
+final case class GoalNotEqual(x: Value, y: Value) extends GoalConstraint
+
+final case class GoalAtom(x: Value) extends GoalConstraint
+
+final case class GoalNotAtom(x: Value) extends GoalConstraint
 
 sealed trait GoalDelay {
   def get: Goal = ???
@@ -34,21 +40,39 @@ sealed trait GoalDelay {
 
 final case class GoalApply(x: Value, xs: List[Value]) extends GoalDelay
 
-sealed trait Exp
+final case class GoalInterpretedExists(x: Var, body: ExpGoal) extends GoalDelay
 
-final case class Var(x: Atom) extends Exp
+sealed trait ExpGoal
 
-final case class Apply(x: Exp, xs: List[Exp]) extends Exp
+sealed trait ExpValue
 
-final case class Conde(clauses: List[List[Exp]]) extends Exp
+final case class Quote(x: Atom) extends ExpValue
 
-final case class Equal(x: Exp, y: Exp) extends Exp
+case object QuoteNonEmptyList extends ExpValue
 
-final case class NotEqual(x: Exp, y: Exp) extends Exp
+final case class ConsNonEmptyList(x: ExpValue, y: ExpValue) extends ExpValue
 
-final case class Lambda(x: Var, body: Exp) extends Exp
+final case class Var(x: Atom) extends ExpValue
 
-final case class Letrec(xs: List[(Var, Exp)], body: Exp) extends Exp
+final case class Apply(x: ExpValue, xs: List[ExpValue]) extends ExpGoal
+
+final case class Conde(clauses: List[List[ExpGoal]]) extends ExpGoal
+
+final case class Equal(x: Exp, y: Exp) extends ExpGoal
+
+final case class NotEqual(x: Exp, y: Exp) extends ExpGoal
+
+final case class Atomo(x: Exp) extends ExpGoal
+
+final case class NotAtomo(x: Exp) extends ExpGoal
+
+final case class Lambda(x: Var, body: ExpGoal) extends ExpValue
+
+final case class Letrec(xs: List[(Var, ExpValue)], body: ExpGoal) extends ExpGoal
+
+final case class Exists(x: Var, body: ExpGoal) extends ExpGoal
 
 // todo
 final case class Context()
+
+final case class Definitions(xs: List[(Var, ExpValue)])
