@@ -53,15 +53,28 @@ implicit class UnifiablePatternMatching[T <: Unifiable](x: T) {
   def mat[R](clauses: T => R): R = ???
 }
 
-sealed trait Holeable[A] extends Unifiable {
+trait ConcreteUnifiable {
+  type T <: Unifiable
+  //implicit protected val ev: this.type <:< T
+  implicit protected val ev: this.type =:= T
+
+  def unifyConcrete(subst: Substitutions, other: T): Option[Substitutions]
+}
+
+sealed trait Holeable[A <: ConcreteUnifiable] extends Unifiable {
   override type T = Holeable[A]
   override implicit protected val ev = implicitly
 }
 
-final case class HoleablePure[T](x: T) extends Holeable[T] {
+final case class HoleablePure[T <: ConcreteUnifiable](x: T) extends Holeable[T] {
   override def matchHole = None
+
+  override def unifyConcrete(subst: Substitutions, other: Holeable[T]) = other match {
+    case HoleablePure(other: T) => x.unifyConcrete(subst, other.asInstanceOf[x.T])
+    case HoleableHole(_) => throw new IllegalStateException()
+  }
 }
 
-final case class HoleableHole[T](x: Hole[Holeable[T]]) extends Holeable[T] {
+final case class HoleableHole[T <: ConcreteUnifiable](x: Hole[Holeable[T]]) extends Holeable[T] {
   override def matchHole = Some(x)
 }
