@@ -29,9 +29,7 @@ object Substitutions {
 }
 
 trait Unifiable {
-  type T <: Unifiable
-  //implicit protected val ev: this.type <:< T
-  implicit protected val ev: this.type =:= T
+  type T >: this.type <: Unifiable
 
   def unify(subst: Substitutions, other: T): Option[Substitutions] =
     (subst.walk(this), subst.walk(other)) match {
@@ -54,16 +52,13 @@ implicit class UnifiablePatternMatching[T <: Unifiable](x: T) {
 }
 
 trait ConcreteUnifiable {
-  type T <: Unifiable
-  //implicit protected val ev: this.type <:< T
-  implicit protected val ev: this.type =:= T
+  type T >: this.type <: ConcreteUnifiable
 
   def unifyConcrete(subst: Substitutions, other: T): Option[Substitutions]
 }
 
 sealed trait Holeable[A <: ConcreteUnifiable] extends Unifiable {
   override type T = Holeable[A]
-  override implicit protected val ev = implicitly
 }
 
 final case class HoleablePure[T <: ConcreteUnifiable](x: T) extends Holeable[T] {
