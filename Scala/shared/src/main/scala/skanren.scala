@@ -48,6 +48,7 @@ trait Unifiable {
 }
 
 implicit class UnifiablePatternMatching[T <: Unifiable](x: T) {
+  // well, it's hard to re-use scala pattern matching syntax
   def mat[R](clauses: T => R): R = ???
 }
 
