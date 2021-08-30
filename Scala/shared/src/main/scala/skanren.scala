@@ -1,7 +1,7 @@
 package skanren
 
 import scala.collection.immutable.HashMap
-import scala.collection.parallel.immutable.{ParHashSet, ParVector}
+import scala.collection.parallel.immutable.{ParHashMap, ParHashSet, ParVector}
 
 sealed trait Hole[T]
 
@@ -11,7 +11,7 @@ final case class Substitution[T](hole: Hole[T], value: T)
 
 type SubstitutionAny = Substitution[Any]
 
-type SubstitutionStore = HashMap[Hole[_], _]
+type SubstitutionStore = ParHashMap[Hole[_], _]
 
 type NegSubstitution = ParVector /*or*/ [SubstitutionAny]
 
@@ -27,10 +27,12 @@ implicit class SubstitutionStoreOps(subst: SubstitutionStore) {
   }
 
   def add(x: GoalUnify[_]): Option[SubstitutionStore] = x match {
-    case GoalUnify(a, b) => a.unify(subst, b.asInstanceOf[a.T])
+    case GoalUnify(a, b) => Unifiable.unify(subst, a, b)
   }
 
   def diff(sub: SubstitutionStore): ParVector[SubstitutionAny] = ???
+
+  def insertUnchecked[T, U](hole: Hole[T], value: U): SubstitutionStore = ???
 }
 
 object NegSubstitution {
@@ -49,12 +51,6 @@ implicit class NegSubstitutionStoreOps(negs: NegSubstitutionStore) {
   def addAndNormalize(subst: SubstitutionStore, xs: ParVector[GoalNegUnify[_]]): Option[NegSubstitutionStore] = ???
 }
 
-object Substitutions {
-  def of[T](hole: Hole[T], value: T): SubstitutionStore = HashMap((hole, value))
-
-  def unchecked[T, U](hole: Hole[T], value: U): SubstitutionStore = of[Any](hole.asInstanceOf[Hole[Any]], value)
-}
-
 trait Unifiable {
   type T >: this.type <: Unifiable
 
@@ -62,9 +58,9 @@ trait Unifiable {
     (subst.walk(this), subst.walk(other)) match {
       case (self, other) =>
         (self.matchHole, other.matchHole) match {
-          case (Some(self), None) => Some(Substitutions.unchecked(self, other))
-          case (None, Some(other)) => Some(Substitutions.unchecked(other, self))
-          case (Some(self), Some(other)) => Some(Substitutions.unchecked(self, other))
+          case (Some(self), None) => Some(subst.insertUnchecked(self, other))
+          case (None, Some(other)) => Some(subst.insertUnchecked(other, self))
+          case (Some(self), Some(other)) => Some(subst.insertUnchecked(self, other))
           case (None, None) => this.unifyConcrete(subst, other)
         }
     }
@@ -76,6 +72,10 @@ trait Unifiable {
   final def ==(other: T): Goal = GoalUnify(this, other)
 
   final def !=(other: T): Goal = GoalNegUnify(this, other)
+}
+
+object Unifiable {
+  def unify[T <: Unifiable](subst: SubstitutionStore, a: T, b: T): Option[SubstitutionStore] = a.unify(subst, b.asInstanceOf[a.T])
 }
 
 /*
@@ -118,7 +118,15 @@ final case class HoleableHole[T <: ConcreteUnifiable](x: Hole[Holeable[T]]) exte
   override def matchHole = Some(x)
 }
 
-sealed trait Goal
+sealed trait Goal {
+  def &&(other: Goal) = GoalConde(ParVector(ParVector(this, other)))
+
+  def ||(other: Goal) = GoalConde(ParVector(ParVector(this), ParVector(other)))
+}
+
+object Goal {
+  def apply(x: => Goal) = new GoalDelay(x)
+}
 
 sealed trait SimpleGoal extends Goal
 
@@ -130,7 +138,14 @@ final case class GoalType(t: Class[_], x: Unifiable) extends SimpleGoal
 
 final case class GoalNegType(t: Class[_], x: Unifiable) extends SimpleGoal
 
-final case class GoalConde(clauses: Vector[Vector[Goal]]) extends Goal
+final case class GoalConde(clauses: ParVector[ParVector[Goal]]) extends Goal {
+  def &&(other: GoalConde): GoalConde = GoalConde(for {
+    a <- this.clauses
+    b <- other.clauses
+  } yield a ++ b)
+
+  def ||(other: GoalConde): GoalConde = GoalConde(this.clauses ++ other.clauses)
+}
 
 final class GoalDelay(x: => Goal) extends Goal {
   lazy val get: Goal = x
