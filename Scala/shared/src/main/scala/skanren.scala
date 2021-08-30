@@ -22,10 +22,6 @@ object Substitution {
 
 type SubstitutionStore = ParHashMap[Hole[_], _]
 
-type NegSubstitution = ParVector /*or*/ [Substitution[_]]
-
-type NegSubstitutionStore = ParVector /*and*/ [NegSubstitution]
-
 implicit class SubstitutionStoreOps(subst: SubstitutionStore) {
   def walk[T <: Unifiable](x: T): T = x.matchHole match {
     case Some(hole) => subst.get(hole) match {
@@ -68,7 +64,28 @@ object NegSubstitution {
   }
 }
 
+type NegSubstitution = ParVector /*or*/ [Substitution[_]]
+
+type NegSubstitutionStore = ParVector /*and*/ [NegSubstitution]
+
 implicit class NegSubstitutionStoreOps(negs: NegSubstitutionStore) {
+  // None means success, Some(ParVector()) means failure.
+  // unchecked
+  private def run(subst: SubstitutionStore, x: Unifiable, y: Unifiable): Option[NegSubstitution] = Unifiable.unify(subst, x, y) match {
+    case None => None
+    case Some(newst) => Some(subst.diff(newst))
+  }
+  // None means success, Some(ParVector()) means failure.
+  private def run(subst: SubstitutionStore, goal: GoalNegUnify[_]): Option[NegSubstitution] = this.run(subst, goal.x, goal.y)
+  // None means success, Some(ParVector()) means failure.
+  private def run(subst: SubstitutionStore, element: Substitution[_]): Option[NegSubstitution] = element match {
+    case Substitution(hole, x) => subst.get(hole) match {
+      case Some(next) => this.run(subst, next, x)
+      case None => Some(ParVector(this))
+    }
+  }
+  // None means success, Some(ParVector()) means failure.
+  private def run(subst: SubstitutionStore, x: NegSubstitution): Option[NegSubstitution] = ???
   def addAndNormalize(subst: SubstitutionStore, xs: ParVector[GoalNegUnify[_]]): Option[NegSubstitutionStore] = ???
 }
 
