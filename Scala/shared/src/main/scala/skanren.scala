@@ -159,7 +159,7 @@ sealed trait SimpleGoal extends Goal {
 object GoalUnify {
   val tag = 0
 
-  def unchecked[T, U](x: T, y: U) = GoalUnify[Unifiable](x.asInstanceOf[Unifiable], y.asInstanceOf[Unifiable])
+  def unchecked[T <: Unifiable, U <: Unifiable](x: T, y: U) = GoalUnify[Unifiable](x, y)
 }
 
 final case class GoalUnify[T <: Unifiable](x: T, y: T) extends SimpleGoal {
@@ -305,7 +305,7 @@ final case class Logic[T](goals: ParVector[Goal], x: T) {
     Logic(goals ++ res.goals, res.x)
   }
 
-  def or(other: Logic[T])(implicit ev: HasHole[T]): Logic[T] = {
+  def or(other: Logic[T])(implicit ev: HasHole[T], ev1: T <:< Unifiable): Logic[T] = {
     val v = ev.hole(new Hole())
     Logic(ParVector(GoalConde(ParVector(GoalUnify.unchecked(v, this.x) +: this.goals, GoalUnify.unchecked(v, other.x) +: other.goals))), v)
   }
