@@ -4,6 +4,7 @@ import scala.annotation.targetName
 import scala.collection.immutable.HashMap
 import scala.collection.parallel.immutable.{ParHashMap, ParHashSet, ParVector}
 import scala.collection.parallel.CollectionConverters._
+import scala.reflect.ClassTag
 
 private val EMPTY_SYMBOL = Symbol("")
 
@@ -176,6 +177,8 @@ final case class GoalNegUnify[T <: Unifiable](x: T, y: T) extends SimpleGoal {
 
 object GoalType {
   val tag = 2
+
+  def apply[T <: Unifiable](t: ClassTag[_], x: T): GoalType = GoalType(t.runtimeClass, x)
 }
 
 final case class GoalType(t: Class[_], x: Unifiable) extends SimpleGoal {
@@ -184,6 +187,8 @@ final case class GoalType(t: Class[_], x: Unifiable) extends SimpleGoal {
 
 object GoalNegType {
   val tag = 3
+
+  def apply[T <: Unifiable](t: ClassTag[_], x: T): GoalNegType = GoalNegType(t.runtimeClass, x)
 }
 
 final case class GoalNegType(t: Class[_], x: Unifiable) extends SimpleGoal {
@@ -225,12 +230,20 @@ final class GoalDelay(x: => Goal) extends Goal {
   override def asConde(depth: Int): GoalConde = if (depth <= 0) super.asConde(depth) else get.asConde(depth - 1)
 }
 
-final case class TypeStore(xs: ParHashSet[Hole[_]]) {
-  def addAndNormalize(subst: SubstitutionStore, news: ParVector[GoalType]): Option[TypeStore] = ???
+final case class TypeStore(xs: ParVector[(Class[_], Unifiable)]) {
+  def addAndNormalize(subst: SubstitutionStore, news: ParVector[GoalType]): Option[TypeStore] = {
+    val all = (news.map(x => (x.t, x.x)) ++ xs).map((t, x) => (t, subst.walk(x)))
+    val (next, check) = all.partition((t, x) => x.matchHole.isDefined)
+    if (check.forall((t, x) => x.getClass == t)) Some(TypeStore(next)) else None
+  }
 }
 
-final case class NegTypeStore(xs: ParHashSet[Hole[_]]) {
-  def addAndNormalize(subst: SubstitutionStore, news: ParVector[GoalNegType]): Option[NegTypeStore] = ???
+final case class NegTypeStore(xs: ParVector[(Class[_], Unifiable)]) {
+  def addAndNormalize(subst: SubstitutionStore, news: ParVector[GoalNegType]): Option[NegTypeStore] = {
+    val all = (news.map(x => (x.t, x.x)) ++ xs).map((t, x) => (t, subst.walk(x)))
+    val (next, check) = all.partition((t, x) => x.matchHole.isDefined)
+    if (check.forall((t, x) => x.getClass != t)) Some(NegTypeStore(next)) else None
+  }
 }
 
 final case class Store(eq: SubstitutionStore, notEq: NegSubstitutionStore, typ: TypeStore, notTyp: NegTypeStore) {
