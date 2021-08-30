@@ -12,6 +12,8 @@ type SubstitutionAny = Substitution[Any]
 
 type Substitutions = HashMap[Hole[_], _]
 
+type NegSubstitutions = Vector /*and*/ [Vector /*or*/ [SubstitutionAny]]
+
 implicit class SubstitutionsOps(subst: Substitutions) {
   def walk[T <: Unifiable](x: T): T = x.matchHole match {
     case Some(hole) => subst.get(hole) match {
@@ -26,6 +28,8 @@ object Substitutions {
   def of[T](hole: Hole[T], value: T): Substitutions = HashMap((hole, value))
 
   def unchecked[T, U](hole: Hole[T], value: U): Substitutions = of[Any](hole.asInstanceOf[Hole[Any]], value)
+
+  def diff(sub: Substitutions): Vector[SubstitutionAny] = ???
 }
 
 trait Unifiable {
@@ -86,3 +90,9 @@ final case class HoleablePure[T <: ConcreteUnifiable](x: T) extends Holeable[T] 
 final case class HoleableHole[T <: ConcreteUnifiable](x: Hole[Holeable[T]]) extends Holeable[T] {
   override def matchHole = Some(x)
 }
+
+sealed trait Goal
+
+final case class GoalUnify(f: Substitutions => Option[Substitutions]) extends Goal
+
+final case class GoalNegUnify(f: Substitutions => Option[Substitutions]) extends Goal
