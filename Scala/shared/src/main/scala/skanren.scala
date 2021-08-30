@@ -150,15 +150,41 @@ object Goal {
   def apply(x: => Goal) = new GoalDelay(x)
 }
 
-sealed trait SimpleGoal extends Goal
+sealed trait SimpleGoal extends Goal {
+  def tag: Int
+}
 
-final case class GoalUnify[T <: Unifiable](x: T, y: T) extends SimpleGoal
+object GoalUnify {
+  val tag = 0
+}
 
-final case class GoalNegUnify[T <: Unifiable](x: T, y: T) extends SimpleGoal
+final case class GoalUnify[T <: Unifiable](x: T, y: T) extends SimpleGoal {
+  override def tag = GoalUnify.tag
+}
 
-final case class GoalType(t: Class[_], x: Unifiable) extends SimpleGoal
+object GoalNegUnify {
+  val tag = 1
+}
 
-final case class GoalNegType(t: Class[_], x: Unifiable) extends SimpleGoal
+final case class GoalNegUnify[T <: Unifiable](x: T, y: T) extends SimpleGoal {
+  override def tag = GoalNegUnify.tag
+}
+
+object GoalType {
+  val tag = 2
+}
+
+final case class GoalType(t: Class[_], x: Unifiable) extends SimpleGoal {
+  override def tag = GoalType.tag
+}
+
+object GoalNegType {
+  val tag = 3
+}
+
+final case class GoalNegType(t: Class[_], x: Unifiable) extends SimpleGoal {
+  override def tag = GoalNegType.tag
+}
 
 final case class GoalConde(clauses: ParVector[ParVector[Goal]]) extends Goal {
   def &&(other: GoalConde): GoalConde = GoalConde(for {
@@ -202,7 +228,15 @@ final case class NegTypeStore(xs: ParHashSet[Hole[_]]) {
 }
 
 final case class Store(eq: SubstitutionStore, notEq: NegSubstitutionStore, typ: TypeStore, notTyp: NegTypeStore) {
-  def addSimpleGoals(goals: ParVector[SimpleGoal]): Option[Store] = ???
+  def addSimpleGoals(goals: ParVector[SimpleGoal]): Option[Store] = {
+    val all = goals.groupBy(_.tag)
+    assert(all.size == 4)
+    val eqGoals = all.get(GoalUnify.tag)
+    val notEqGoals = all.get(GoalNegUnify.tag)
+    val typGoals = all.get(GoalType.tag)
+    val notTypGoals = all.get(GoalNegType.tag)
+    ???
+  }
 }
 
 private val DEFAULT_DEPTH = 5
