@@ -47,15 +47,27 @@ trait Unifiable {
   def matchHole: Option[Hole[T]]
 }
 
+/*
 implicit class UnifiablePatternMatching[T <: Unifiable](x: T) {
   // well, it's hard to re-use scala pattern matching syntax
   def mat[R](clauses: T => R): R = ???
 }
+*/
 
-trait ConcreteUnifiable {
-  type T >: this.type <: ConcreteUnifiable
+final case class Unifying[T](f: Substitutions => Option[(Substitutions, T)])
 
-  def unifyConcrete(subst: Substitutions, other: T): Option[Substitutions]
+trait Extractor[T, U] {
+  def unapplyo(x: T): Unifying[U]
+}
+
+trait ConcreteUnifiable extends Unifiable {
+  override type T >: this.type <: ConcreteUnifiable
+
+  override def unifyConcrete(subst: Substitutions, other: T): Option[Substitutions] = throw new UnsupportedOperationException("Must implement unifyConcrete")
+
+  final override def unify(subst: Substitutions, other: T): Option[Substitutions] = this.unifyConcrete(subst, other)
+
+  final override def matchHole: Option[Hole[T]] = None
 }
 
 sealed trait Holeable[A <: ConcreteUnifiable] extends Unifiable {
