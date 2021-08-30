@@ -120,9 +120,15 @@ final case class HoleableHole[T <: ConcreteUnifiable](x: Hole[Holeable[T]]) exte
 
 sealed trait Goal
 
-final case class GoalUnify[T <: Unifiable](x: T, y: T) extends Goal
+sealed trait SimpleGoal extends Goal
 
-final case class GoalNegUnify[T <: Unifiable](x: T, y: T) extends Goal
+final case class GoalUnify[T <: Unifiable](x: T, y: T) extends SimpleGoal
+
+final case class GoalNegUnify[T <: Unifiable](x: T, y: T) extends SimpleGoal
+
+final case class GoalType(t: Class[_], x: Unifiable) extends SimpleGoal
+
+final case class GoalNegType(t: Class[_], x: Unifiable) extends SimpleGoal
 
 final case class GoalConde(clauses: Vector[Vector[Goal]]) extends Goal
 
@@ -130,16 +136,12 @@ final class GoalDelay(x: => Goal) extends Goal {
   lazy val get: Goal = x
 }
 
-final case class GoalType(t: Class[_], x: Unifiable) extends Goal
-
-final case class GoalNegType(t: Class[_], x: Unifiable) extends Goal
-
 final case class TypeStore(xs: ParHashSet[Hole[_]]) {
-  def addAndNormalize(subst: SubstitutionStore, news: ParHashSet[Hole[_]]) = ???
+  def addAndNormalize(subst: SubstitutionStore, news: ParVector[Hole[_]]) = ???
 }
 
 final case class NegTypeStore(xs: ParHashSet[Hole[_]]) {
-  def addAndNormalize(subst: SubstitutionStore, news: ParHashSet[Hole[_]]) = ???
+  def addAndNormalize(subst: SubstitutionStore, news: ParVector[Hole[_]]) = ???
 }
 
 final case class Store(eq: SubstitutionStore, notEq: NegSubstitutionStore, typ: TypeStore, notTyp: NegTypeStore)
