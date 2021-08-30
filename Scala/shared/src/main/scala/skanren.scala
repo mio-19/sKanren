@@ -1,7 +1,7 @@
 package skanren
 
 import scala.collection.immutable.HashMap
-import scala.collection.parallel.immutable.ParVector
+import scala.collection.parallel.immutable.{ParHashSet, ParVector}
 
 sealed trait Hole[T]
 
@@ -13,11 +13,11 @@ type SubstitutionAny = Substitution[Any]
 
 type SubstitutionStore = HashMap[Hole[_], _]
 
-type NegSubstitution = Vector /*or*/ [SubstitutionAny]
+type NegSubstitution = ParVector /*or*/ [SubstitutionAny]
 
-type NegSubstitutionStore = Vector /*and*/ [NegSubstitution]
+type NegSubstitutionStore = ParVector /*and*/ [NegSubstitution]
 
-implicit class SubstitutionsOps(subst: SubstitutionStore) {
+implicit class SubstitutionStoreOps(subst: SubstitutionStore) {
   def walk[T <: Unifiable](x: T): T = x.matchHole match {
     case Some(hole) => subst.get(hole) match {
       case Some(next) => this.walk(next.asInstanceOf[T])
@@ -25,14 +25,34 @@ implicit class SubstitutionsOps(subst: SubstitutionStore) {
     }
     case None => x
   }
+
+  def add(x: GoalUnify[_]): Option[SubstitutionStore] = x match {
+    case GoalUnify(a, b) => a.unify(subst, b.asInstanceOf[a.T])
+  }
+
+  def diff(sub: SubstitutionStore): ParVector[SubstitutionAny] = ???
+}
+
+object NegSubstitution {
+  def add1(subst: SubstitutionStore, x: GoalNegUnify[_]): Option[NegSubstitution] = x match {
+    case GoalNegUnify(a, b) => a.unify(subst, b.asInstanceOf[a.T]) match {
+      case None => Some(ParVector())
+      case Some(newsubst) => {
+        val diff = subst.diff(newsubst)
+        if (diff.isEmpty) None else Some(diff)
+      }
+    }
+  }
+}
+
+implicit class NegSubstitutionStoreOps(negs: NegSubstitutionStore) {
+  def addAndNormalize(subst: SubstitutionStore, xs: ParVector[GoalNegUnify[_]]): Option[NegSubstitutionStore] = ???
 }
 
 object Substitutions {
   def of[T](hole: Hole[T], value: T): SubstitutionStore = HashMap((hole, value))
 
   def unchecked[T, U](hole: Hole[T], value: U): SubstitutionStore = of[Any](hole.asInstanceOf[Hole[Any]], value)
-
-  def diff(sub: SubstitutionStore): Vector[SubstitutionAny] = ???
 }
 
 trait Unifiable {
@@ -52,6 +72,10 @@ trait Unifiable {
   protected def unifyConcrete(subst: SubstitutionStore, other: T): Option[SubstitutionStore] = throw new UnsupportedOperationException()
 
   def matchHole: Option[Hole[T]]
+
+  final def ==(other: T): Goal = GoalUnify(this, other)
+
+  final def !=(other: T): Goal = GoalNegUnify(this, other)
 }
 
 /*
@@ -110,7 +134,15 @@ final case class GoalType(t: Class[_], x: Unifiable) extends Goal
 
 final case class GoalNegType(t: Class[_], x: Unifiable) extends Goal
 
-final case class Store(eq: SubstitutionStore, notEq: NegSubstitutionStore, typ: Set[Hole[_]], notTyp: Set[Hole[_]])
+final case class TypeStore(xs: ParHashSet[Hole[_]]) {
+  def addAndNormalize(subst: SubstitutionStore, news: ParHashSet[Hole[_]]) = ???
+}
+
+final case class NegTypeStore(xs: ParHashSet[Hole[_]]) {
+  def addAndNormalize(subst: SubstitutionStore, news: ParHashSet[Hole[_]]) = ???
+}
+
+final case class Store(eq: SubstitutionStore, notEq: NegSubstitutionStore, typ: TypeStore, notTyp: NegTypeStore)
 
 final case class Universe(store: Store, goals: ParVector[ParVector[Goal]])
 
