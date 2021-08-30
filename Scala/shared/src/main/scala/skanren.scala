@@ -76,6 +76,22 @@ trait Unifiable {
 
 object Unifiable {
   def unify[T <: Unifiable](subst: SubstitutionStore, a: T, b: T): Option[SubstitutionStore] = a.unify(subst, b.asInstanceOf[a.T])
+
+  def unify[T <: Unifiable, U <: Unifiable](subst: SubstitutionStore, a: T, b: T, x: T, y: T): Option[SubstitutionStore] = for {
+    subst <- unify(subst, a, b)
+    subst <- unify(subst, x, y)
+  } yield subst
+
+  def unify[A <: Unifiable, B <: Unifiable](subst: SubstitutionStore, a: (A, B), b: (A, B)): Option[SubstitutionStore] = for {
+    subst <- unify(subst, a._1, b._1)
+    subst <- unify(subst, a._2, b._2)
+  } yield subst
+
+  def unify[A <: Unifiable, B <: Unifiable, C <: Unifiable](subst: SubstitutionStore, a: (A, B, C), b: (A, B, C)): Option[SubstitutionStore] = for {
+    subst <- unify(subst, a._1, b._1)
+    subst <- unify(subst, a._2, b._2)
+    subst <- unify(subst, a._3, b._3)
+  } yield subst
 }
 
 /*
