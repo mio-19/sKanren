@@ -2,7 +2,7 @@ package skanren
 
 import scala.annotation.targetName
 import scala.collection.immutable.HashMap
-import scala.collection.parallel.immutable.{ParHashMap, ParHashSet, ParVector}
+import scala.collection.parallel.immutable.{ParHashMap, ParHashSet, ParVector, ParIterable}
 import scala.collection.parallel.CollectionConverters._
 import scala.reflect.ClassTag
 
@@ -16,11 +16,13 @@ final class Hole[T](identifier: Symbol) {
 
 final case class Substitution[T](hole: Hole[T], value: T)
 
-type SubstitutionAny = Substitution[Any]
+object Substitution {
+  def unchecked[T, U](hole: Hole[T], value: U): Substitution[_] = Substitution[Any](hole.asInstanceOf[Hole[Any]], value)
+}
 
 type SubstitutionStore = ParHashMap[Hole[_], _]
 
-type NegSubstitution = ParVector /*or*/ [SubstitutionAny]
+type NegSubstitution = ParVector /*or*/ [Substitution[_]]
 
 type NegSubstitutionStore = ParVector /*and*/ [NegSubstitution]
 
@@ -39,9 +41,19 @@ implicit class SubstitutionStoreOps(subst: SubstitutionStore) {
 
   def adds(xs: ParVector[GoalUnify[_]]): Option[SubstitutionStore] = ???
 
-  def diff(sub: SubstitutionStore): ParVector[SubstitutionAny] = ???
+  def diff(sub: SubstitutionStore): ParVector[Substitution[_]] = ParVector() ++ sub.filter((k, v) => subst.get(k) match {
+    case Some(raw) => {
+      assert(v == raw)
+      false
+    }
+    case None => true
+  }).map((k, v) => Substitution.unchecked(k, v))
 
-  def insertUnchecked[T, U](hole: Hole[T], value: U): SubstitutionStore = ???
+  def insertUnchecked[T, U](hole: Hole[T], value: U): SubstitutionStore =
+    if (subst.contains(hole))
+      throw new IllegalArgumentException()
+    else
+      subst.updated(hole, value)
 }
 
 object NegSubstitution {
