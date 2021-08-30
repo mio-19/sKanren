@@ -4,9 +4,13 @@ import scala.annotation.targetName
 import scala.collection.immutable.HashMap
 import scala.collection.parallel.immutable.{ParHashMap, ParHashSet, ParVector}
 
-sealed trait Hole[T]
+private val EMPTY_SYMBOL = Symbol("")
 
-final class UniqueHole[T](identifier: Symbol) extends Hole[T]
+final class Hole[T](identifier: Symbol) {
+  def this() = {
+    this(EMPTY_SYMBOL)
+  }
+}
 
 final case class Substitution[T](hole: Hole[T], value: T)
 
@@ -50,6 +54,10 @@ object NegSubstitution {
 
 implicit class NegSubstitutionStoreOps(negs: NegSubstitutionStore) {
   def addAndNormalize(subst: SubstitutionStore, xs: ParVector[GoalNegUnify[_]]): Option[NegSubstitutionStore] = ???
+}
+
+trait HasHole[T] {
+  def hole(x: Hole[T]): T
 }
 
 trait Unifiable {
@@ -194,9 +202,12 @@ object Logic {
 
   def apply(x: Goal): Logic[Unit] = Logic(ParVector(x), ())
 
-  def create[T, U](x: Hole[T] => Logic[U]): Logic[U] = ???
+  def create[T, U](x: Hole[T] => Logic[U]): Logic[U] = x(new Hole())
 
-  @targetName("create2") def create[T](x: Hole[T] => Goal): Logic[T] = ???
+  def create[T](x: T => Goal)(implicit ev: HasHole[T]): Logic[T] = {
+    val h = ev.hole(new Hole())
+    Logic(ParVector(x(h)), h)
+  }
 }
 
 trait LogicExtractor[T, U] {
