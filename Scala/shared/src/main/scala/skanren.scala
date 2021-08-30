@@ -1,6 +1,7 @@
 package skanren
 
 import scala.collection.immutable.HashMap
+import scala.collection.parallel.immutable.ParVector
 
 sealed trait Hole[T]
 
@@ -109,3 +110,8 @@ final case class GoalType(t: Class[_], x: Unifiable) extends Goal
 
 final case class GoalNegType(t: Class[_], x: Unifiable) extends Goal
 
+final case class Store(eq: SubstitutionStore, notEq: NegSubstitutionStore, typ: Set[Hole[_]], notTyp: Set[Hole[_]])
+
+final case class Universe(store: Store, goals: ParVector[ParVector[Goal]])
+
+type State = ParVector[Universe]
