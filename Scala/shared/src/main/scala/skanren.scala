@@ -142,6 +142,8 @@ sealed trait Goal {
   def &&(other: Goal) = GoalConde(ParVector(ParVector(this, other)))
 
   def ||(other: Goal) = GoalConde(ParVector(ParVector(this), ParVector(other)))
+
+  def asConde(depth: Int): GoalConde = GoalConde(ParVector(ParVector(this)))
 }
 
 object Goal {
@@ -165,10 +167,30 @@ final case class GoalConde(clauses: ParVector[ParVector[Goal]]) extends Goal {
   } yield a ++ b)
 
   def ||(other: GoalConde): GoalConde = GoalConde(this.clauses ++ other.clauses)
+
+  override def asConde(depth: Int): GoalConde = if (depth <= 0) super.asConde(depth) else {
+    val newDepth = depth - 1
+    if (clauses.isEmpty)
+      this
+    else
+      clauses.map(block => if (block.isEmpty) GoalConde.success else block.map(_.asConde(newDepth)).reduce(_ && _)).reduce(_ || _)
+  }
+}
+
+object GoalConde {
+  // xs can't be empty
+  def asConde(xs: ParVector[Goal], depth: Int): GoalConde = {
+    val newDepth = depth - 1
+    xs.map(_.asConde(depth)).reduce(_ && _)
+  }
+
+  val success: GoalConde = GoalConde(ParVector())
 }
 
 final class GoalDelay(x: => Goal) extends Goal {
   lazy val get: Goal = x
+
+  override def asConde(depth: Int): GoalConde = if (depth <= 0) super.asConde(depth) else get.asConde(depth - 1)
 }
 
 final case class TypeStore(xs: ParHashSet[Hole[_]]) {
@@ -179,10 +201,27 @@ final case class NegTypeStore(xs: ParHashSet[Hole[_]]) {
   def addAndNormalize(subst: SubstitutionStore, news: ParVector[Hole[_]]) = ???
 }
 
-final case class Store(eq: SubstitutionStore, notEq: NegSubstitutionStore, typ: TypeStore, notTyp: NegTypeStore)
+final case class Store(eq: SubstitutionStore, notEq: NegSubstitutionStore, typ: TypeStore, notTyp: NegTypeStore) {
+  def addSimpleGoals(goals: ParVector[SimpleGoal]): Option[Store] = ???
+}
 
-final case class Universe(store: Store, goals: ParVector[ParVector[Goal]]) {
-  def step: ParVector[Universe] = ???
+private val DEFAULT_DEPTH = 5
+
+final case class Universe(store: Store, goals: ParVector[Goal]) {
+  def step: ParVector[Universe] = if (goals.isEmpty) ParVector(this) else {
+    val (simplesRaw, restGoals) = goals.partition(_.isInstanceOf[SimpleGoal])
+    val simples = simplesRaw.map(_.asInstanceOf[SimpleGoal])
+    if (restGoals.isEmpty)
+      store.addSimpleGoals(simples) match {
+        case None => ParVector()
+        case Some(newstore) => ParVector(Universe.pure(newstore))
+      }
+    else
+      store.addSimpleGoals(simples).map(newstore => {
+        val GoalConde(conde) = GoalConde.asConde(restGoals, DEFAULT_DEPTH)
+        conde.map(block => Universe(newstore, block))
+      }).getOrElse(ParVector())
+  }
 
   def isNormal: Boolean = goals.isEmpty
 
