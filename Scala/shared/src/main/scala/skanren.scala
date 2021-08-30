@@ -36,6 +36,8 @@ implicit class SubstitutionStoreOps(subst: SubstitutionStore) {
     case GoalUnify(a, b) => Unifiable.unify(subst, a, b)
   }
 
+  def adds(xs: ParVector[GoalUnify[_]]): Option[SubstitutionStore] = ???
+
   def diff(sub: SubstitutionStore): ParVector[SubstitutionAny] = ???
 
   def insertUnchecked[T, U](hole: Hole[T], value: U): SubstitutionStore = ???
@@ -220,22 +222,27 @@ final class GoalDelay(x: => Goal) extends Goal {
 }
 
 final case class TypeStore(xs: ParHashSet[Hole[_]]) {
-  def addAndNormalize(subst: SubstitutionStore, news: ParVector[Hole[_]]) = ???
+  def addAndNormalize(subst: SubstitutionStore, news: ParVector[GoalType]): Option[TypeStore] = ???
 }
 
 final case class NegTypeStore(xs: ParHashSet[Hole[_]]) {
-  def addAndNormalize(subst: SubstitutionStore, news: ParVector[Hole[_]]) = ???
+  def addAndNormalize(subst: SubstitutionStore, news: ParVector[GoalNegType]): Option[NegTypeStore] = ???
 }
 
 final case class Store(eq: SubstitutionStore, notEq: NegSubstitutionStore, typ: TypeStore, notTyp: NegTypeStore) {
   def addSimpleGoals(goals: ParVector[SimpleGoal]): Option[Store] = {
     val all = goals.groupBy(_.tag)
     assert(all.size == 4)
-    val eqGoals = all.get(GoalUnify.tag)
-    val notEqGoals = all.get(GoalNegUnify.tag)
-    val typGoals = all.get(GoalType.tag)
-    val notTypGoals = all.get(GoalNegType.tag)
-    ???
+    val eqGoals = all(GoalUnify.tag).map(_.asInstanceOf[GoalUnify[_]])
+    val notEqGoals = all(GoalNegUnify.tag).map(_.asInstanceOf[GoalNegUnify[_]])
+    val typGoals = all(GoalType.tag).map(_.asInstanceOf[GoalType])
+    val notTypGoals = all(GoalNegType.tag).map(_.asInstanceOf[GoalNegType])
+    for {
+      eq0 <- eq.adds(eqGoals)
+      notEq0 <- notEq.addAndNormalize(eq0, notEqGoals)
+      typ0 <- typ.addAndNormalize(eq0, typGoals)
+      notTyp0 <- notTyp.addAndNormalize(eq0, notTypGoals)
+    } yield Store(eq0, notEq0, typ0, notTyp0)
   }
 }
 
