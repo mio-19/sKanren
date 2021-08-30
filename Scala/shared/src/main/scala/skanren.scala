@@ -10,11 +10,13 @@ final case class Substitution[T](hole: Hole[T], value: T)
 
 type SubstitutionAny = Substitution[Any]
 
-type Substitutions = HashMap[Hole[_], _]
+type SubstitutionStore = HashMap[Hole[_], _]
 
-type NegSubstitutions = Vector /*and*/ [Vector /*or*/ [SubstitutionAny]]
+type NegSubstitution = Vector /*or*/ [SubstitutionAny]
 
-implicit class SubstitutionsOps(subst: Substitutions) {
+type NegSubstitutionStore = Vector /*and*/ [NegSubstitution]
+
+implicit class SubstitutionsOps(subst: SubstitutionStore) {
   def walk[T <: Unifiable](x: T): T = x.matchHole match {
     case Some(hole) => subst.get(hole) match {
       case Some(next) => this.walk(next.asInstanceOf[T])
@@ -25,17 +27,17 @@ implicit class SubstitutionsOps(subst: Substitutions) {
 }
 
 object Substitutions {
-  def of[T](hole: Hole[T], value: T): Substitutions = HashMap((hole, value))
+  def of[T](hole: Hole[T], value: T): SubstitutionStore = HashMap((hole, value))
 
-  def unchecked[T, U](hole: Hole[T], value: U): Substitutions = of[Any](hole.asInstanceOf[Hole[Any]], value)
+  def unchecked[T, U](hole: Hole[T], value: U): SubstitutionStore = of[Any](hole.asInstanceOf[Hole[Any]], value)
 
-  def diff(sub: Substitutions): Vector[SubstitutionAny] = ???
+  def diff(sub: SubstitutionStore): Vector[SubstitutionAny] = ???
 }
 
 trait Unifiable {
   type T >: this.type <: Unifiable
 
-  def unify(subst: Substitutions, other: T): Option[Substitutions] =
+  def unify(subst: SubstitutionStore, other: T): Option[SubstitutionStore] =
     (subst.walk(this), subst.walk(other)) match {
       case (self, other) =>
         (self.matchHole, other.matchHole) match {
@@ -46,7 +48,7 @@ trait Unifiable {
         }
     }
 
-  protected def unifyConcrete(subst: Substitutions, other: T): Option[Substitutions] = throw new UnsupportedOperationException()
+  protected def unifyConcrete(subst: SubstitutionStore, other: T): Option[SubstitutionStore] = throw new UnsupportedOperationException()
 
   def matchHole: Option[Hole[T]]
 }
@@ -58,7 +60,7 @@ implicit class UnifiablePatternMatching[T <: Unifiable](x: T) {
 }
 */
 
-final case class Unifying[T](f: Substitutions => Option[(Substitutions, T)])
+final case class Unifying[T](f: SubstitutionStore => Option[(SubstitutionStore, T)])
 
 trait Extractor[T, U] {
   def unapplyo(x: T): Unifying[U]
@@ -67,9 +69,9 @@ trait Extractor[T, U] {
 trait ConcreteUnifiable extends Unifiable {
   override type T >: this.type <: ConcreteUnifiable
 
-  override def unifyConcrete(subst: Substitutions, other: T): Option[Substitutions] = throw new UnsupportedOperationException("Must implement unifyConcrete")
+  override def unifyConcrete(subst: SubstitutionStore, other: T): Option[SubstitutionStore] = throw new UnsupportedOperationException("Must implement unifyConcrete")
 
-  final override def unify(subst: Substitutions, other: T): Option[Substitutions] = this.unifyConcrete(subst, other)
+  final override def unify(subst: SubstitutionStore, other: T): Option[SubstitutionStore] = this.unifyConcrete(subst, other)
 
   final override def matchHole: Option[Hole[T]] = None
 }
@@ -81,7 +83,7 @@ sealed trait Holeable[A <: ConcreteUnifiable] extends Unifiable {
 final case class HoleablePure[T <: ConcreteUnifiable](x: T) extends Holeable[T] {
   override def matchHole = None
 
-  override def unifyConcrete(subst: Substitutions, other: Holeable[T]) = other match {
+  override def unifyConcrete(subst: SubstitutionStore, other: Holeable[T]) = other match {
     case HoleablePure(other: T) => x.unifyConcrete(subst, other.asInstanceOf[x.T])
     case HoleableHole(_) => throw new IllegalStateException()
   }
@@ -93,6 +95,17 @@ final case class HoleableHole[T <: ConcreteUnifiable](x: Hole[Holeable[T]]) exte
 
 sealed trait Goal
 
-final case class GoalUnify(f: Substitutions => Option[Substitutions]) extends Goal
+final case class GoalUnify[T <: Unifiable](x: T, y: T) extends Goal
 
-final case class GoalNegUnify(f: Substitutions => Option[Substitutions]) extends Goal
+final case class GoalNegUnify[T <: Unifiable](x: T, y: T) extends Goal
+
+final case class GoalConde(clauses: Vector[Vector[Goal]]) extends Goal
+
+final class GoalDelay(x: => Goal) extends Goal {
+  lazy val get: Goal = x
+}
+
+final case class GoalType(t: Class[_], x: Unifiable) extends Goal
+
+final case class GoalNegType(t: Class[_], x: Unifiable) extends Goal
+
