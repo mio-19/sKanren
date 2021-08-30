@@ -101,12 +101,6 @@ implicit class UnifiablePatternMatching[T <: Unifiable](x: T) {
 }
 */
 
-final case class Unifying[T](f: SubstitutionStore => Option[(SubstitutionStore, T)])
-
-trait Extractor[T, U] {
-  def unapplyo(x: T): Unifying[U]
-}
-
 trait ConcreteUnifiable extends Unifiable {
   override type T >: this.type <: ConcreteUnifiable
 
@@ -180,3 +174,24 @@ final case class Store(eq: SubstitutionStore, notEq: NegSubstitutionStore, typ: 
 final case class Universe(store: Store, goals: ParVector[ParVector[Goal]])
 
 type State = ParVector[Universe]
+
+final case class Logic[T](goals: ParVector[Goal], x: T) {
+  def map[U](f: T => U): Logic[U] = Logic(goals, f(x))
+
+  def flatMap[U](f: T => Logic[U]): Logic[U] = {
+    val res = f(x)
+    Logic(goals ++ res.goals, res.x)
+  }
+}
+
+trait LogicExtractor[T, U] {
+  def unapplyo(x: T): Logic[U]
+}
+
+/*
+final case class Unifying[T](f: SubstitutionStore => Option[(SubstitutionStore, T)])
+
+trait UnifyingExtractor[T, U] {
+  def unapplyo(x: T): Unifying[U]
+}
+*/
