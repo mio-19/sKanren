@@ -185,11 +185,11 @@ final case class Universe(store: Store, goals: ParVector[ParVector[Goal]])
 type State = ParVector[Universe]
 
 final case class Logic[T](goals: ParVector[Goal], x: T) {
-  def map[U](f: T => U): Logic[U] = new Logic(goals, f(x))
+  def map[U](f: T => U): Logic[U] = Logic(goals, f(x))
 
   def flatMap[U](f: T => Logic[U]): Logic[U] = {
     val res = f(x)
-    new Logic(goals ++ res.goals, res.x)
+    Logic(goals ++ res.goals, res.x)
   }
 }
 
