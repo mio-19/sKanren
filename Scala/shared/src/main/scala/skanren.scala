@@ -1,5 +1,6 @@
 package skanren
 
+import scala.annotation.targetName
 import scala.collection.immutable.HashMap
 import scala.collection.parallel.immutable.{ParHashMap, ParHashSet, ParVector}
 
@@ -176,12 +177,26 @@ final case class Universe(store: Store, goals: ParVector[ParVector[Goal]])
 type State = ParVector[Universe]
 
 final case class Logic[T](goals: ParVector[Goal], x: T) {
-  def map[U](f: T => U): Logic[U] = Logic(goals, f(x))
+  def map[U](f: T => U): Logic[U] = new Logic(goals, f(x))
 
   def flatMap[U](f: T => Logic[U]): Logic[U] = {
     val res = f(x)
-    Logic(goals ++ res.goals, res.x)
+    new Logic(goals ++ res.goals, res.x)
   }
+}
+
+object Logic {
+  private val emptyGoals: ParVector[Goal] = ParVector()
+
+  def pure[T](x: T): Logic[T] = Logic(emptyGoals, x)
+
+  def apply[T](x: T): Logic[T] = Logic(emptyGoals, x)
+
+  def apply(x: Goal): Logic[Unit] = Logic(ParVector(x), ())
+
+  def create[T, U](x: Hole[T] => Logic[U]): Logic[U] = ???
+
+  @targetName("create2") def create[T](x: Hole[T] => Goal): Logic[T] = ???
 }
 
 trait LogicExtractor[T, U] {
