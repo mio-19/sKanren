@@ -3,6 +3,7 @@ package skanren
 import scala.annotation.targetName
 import scala.collection.immutable.HashMap
 import scala.collection.parallel.immutable.{ParHashMap, ParHashSet, ParVector}
+import scala.collection.parallel.CollectionConverters._
 
 private val EMPTY_SYMBOL = Symbol("")
 
@@ -180,9 +181,37 @@ final case class NegTypeStore(xs: ParHashSet[Hole[_]]) {
 
 final case class Store(eq: SubstitutionStore, notEq: NegSubstitutionStore, typ: TypeStore, notTyp: NegTypeStore)
 
-final case class Universe(store: Store, goals: ParVector[ParVector[Goal]])
+final case class Universe(store: Store, goals: ParVector[ParVector[Goal]]) {
+  def step: ParVector[Universe] = ???
+
+  def isNormal: Boolean = goals.isEmpty
+
+  def getNormal: Store = if (goals.isEmpty) store else throw new IllegalAccessException()
+}
+
+object Universe {
+  def pure(x: Store): Universe = Universe(x, ParVector())
+}
 
 type State = ParVector[Universe]
+
+implicit class StateOps(st: State) {
+  def step: Option[State] = if (st.isEmpty) None else Some(st.map(_.step).flatten)
+
+  def run1Vec: Option[(Vector[Store], State)] = {
+    val (normals, newst) = st.partition(_.isNormal)
+    if (normals.isEmpty) newst.step.flatMap(_.run1Vec) else Some((normals.map(_.getNormal).seq, newst))
+  }
+
+  def run1: Option[(Store, State)] = for {
+    (normals, newst) <- this.run1Vec
+  } yield (normals.head, normals.par.tail.map(Universe.pure(_)) ++ newst)
+
+  def runAll: Vector[Store] = st.run1Vec match {
+    case Some(normals, newst) => normals ++ newst.runAll
+    case None => Vector()
+  }
+}
 
 final case class Logic[T](goals: ParVector[Goal], x: T) {
   def map[U](f: T => U): Logic[U] = Logic(goals, f(x))
