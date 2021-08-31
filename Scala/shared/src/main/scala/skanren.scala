@@ -14,13 +14,13 @@ final class Hole[T](identifier: Symbol) {
   }
 }
 
-final case class Substitution[T](hole: Hole[T], value: T)
+final case class Substitution[T <: Unifiable](hole: Hole[T], value: T)
 
 object Substitution {
-  def unchecked[T, U](hole: Hole[T], value: U): Substitution[_] = Substitution[Any](hole.asInstanceOf[Hole[Any]], value)
+  def unchecked[T, U <: Unifiable](hole: Hole[T], value: U): Substitution[_] = Substitution[Unifiable](hole.asInstanceOf[Hole[Unifiable]], value)
 }
 
-type SubstitutionStore = ParHashMap[Hole[_], _]
+type SubstitutionStore = ParHashMap[Hole[_], Unifiable]
 
 implicit class SubstitutionStoreOps(subst: SubstitutionStore) {
   def walk[T <: Unifiable](x: T): T = x.matchHole match {
@@ -45,7 +45,7 @@ implicit class SubstitutionStoreOps(subst: SubstitutionStore) {
     case None => true
   }).map((k, v) => Substitution.unchecked(k, v))
 
-  def insertUnchecked[T, U](hole: Hole[T], value: U): SubstitutionStore =
+  def insertUnchecked[T, U <: Unifiable](hole: Hole[T], value: U): SubstitutionStore =
     if (subst.contains(hole))
       throw new IllegalArgumentException()
     else
@@ -75,17 +75,21 @@ implicit class NegSubstitutionStoreOps(negs: NegSubstitutionStore) {
     case None => None
     case Some(newst) => Some(subst.diff(newst))
   }
+
   // None means success, Some(ParVector()) means failure.
   private def run(subst: SubstitutionStore, goal: GoalNegUnify[_]): Option[NegSubstitution] = this.run(subst, goal.x, goal.y)
+
   // None means success, Some(ParVector()) means failure.
   private def run(subst: SubstitutionStore, element: Substitution[_]): Option[NegSubstitution] = element match {
     case Substitution(hole, x) => subst.get(hole) match {
       case Some(next) => this.run(subst, next, x)
-      case None => Some(ParVector(this))
+      case None => Some(ParVector(element))
     }
   }
+
   // None means success, Some(ParVector()) means failure.
   private def run(subst: SubstitutionStore, x: NegSubstitution): Option[NegSubstitution] = ???
+
   def addAndNormalize(subst: SubstitutionStore, xs: ParVector[GoalNegUnify[_]]): Option[NegSubstitutionStore] = ???
 }
 
@@ -100,9 +104,8 @@ trait Unifiable {
     (subst.walk(this), subst.walk(other)) match {
       case (self, other) =>
         (self.matchHole, other.matchHole) match {
-          case (Some(self), None) => Some(subst.insertUnchecked(self, other))
+          case (Some(self), None | Some(_)) => Some(subst.insertUnchecked(self, other))
           case (None, Some(other)) => Some(subst.insertUnchecked(other, self))
-          case (Some(self), Some(other)) => Some(subst.insertUnchecked(self, other))
           case (None, None) => this.unifyConcrete(subst, other)
         }
     }
