@@ -35,7 +35,8 @@ implicit class SubstitutionStoreOps(subst: SubstitutionStore) {
     case GoalUnify(a, b) => Unifiable.unify(subst, a, b)
   }
 
-  def adds(xs: ParVector[GoalUnify[_]]): Option[SubstitutionStore] = ???
+  def adds(xs: ParVector[GoalUnify[_]]): Option[SubstitutionStore] =
+    xs.foldLeft(Some(subst): Option[SubstitutionStore])((s, x) => s.flatMap(_.add(x)))
 
   def diff(sub: SubstitutionStore): ParVector[Substitution[_]] = ParVector() ++ sub.filter((k, v) => subst.get(k) match {
     case Some(raw) => {
