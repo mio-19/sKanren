@@ -131,6 +131,13 @@ trait Unifiable {
   final def !=(other: T): Goal = GoalNegUnify(this, other)
 }
 
+/*
+
+trait UnifyingExtractor[T, U] {
+  def unapplyo(x: T): Unifying[U]
+}
+*/
+
 object Unifiable {
   def unify[T <: Unifiable](subst: SubstitutionStore, a: T, b: T): Option[SubstitutionStore] = a.unify(subst, b.asInstanceOf[a.T])
 
@@ -158,10 +165,28 @@ implicit class UnifiablePatternMatching[T <: Unifiable](x: T) {
 }
 */
 
+type Unifying[T] = SubstitutionStore => Option[(SubstitutionStore, T)]
+
+implicit class UnifyingOps[A](f: Unifying[A]) {
+  def flatMap[B](x: A => Unifying[B]): Unifying[B] = st => f(st).flatMap({ case (st, a) => x(a)(st) })
+
+  def map[B](x: A => B): Unifying[B] = st => f(st).map({ case (st, a) => (st, x(a)) })
+}
+
+object Unifying {
+  def fail[A]: Unifying[A] = st => None
+
+  def pure[A](x: A): Unifying[A] = st => Some((st, x))
+
+  def guard(x: Boolean): Unifying[Unit] = if (x) Unifying.pure(()) else Unifying.fail
+}
+
 trait ConcreteUnifiable extends Unifiable {
   override type T >: this.type <: ConcreteUnifiable
 
-  override def unifyConcrete(subst: SubstitutionStore, other: T): Option[SubstitutionStore] = throw new UnsupportedOperationException("Must implement unifyConcrete")
+  override def unifyConcrete(subst: SubstitutionStore, other: T): Option[SubstitutionStore] = unifyConcrete(other)(subst).map(_._1)
+
+  def unifyConcrete(other: T): Unifying[Unit] = subst => this.unifyConcrete(subst, other).map(s => (s, ()))
 
   final override def unify(subst: SubstitutionStore, other: T): Option[SubstitutionStore] = this.unifyConcrete(subst, other)
 
@@ -388,11 +413,3 @@ object Logic {
 trait LogicExtractor[T, U] {
   def unapplyo(x: T): Logic[U]
 }
-
-/*
-final case class Unifying[T](f: SubstitutionStore => Option[(SubstitutionStore, T)])
-
-trait UnifyingExtractor[T, U] {
-  def unapplyo(x: T): Unifying[U]
-}
-*/
