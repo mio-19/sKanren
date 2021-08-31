@@ -122,6 +122,10 @@ trait Unifiable {
         }
     }
 
+  final def unify(other: T): Unifying[Unit] = st => this.unify(st, other).map(x => (x, ()))
+
+  @targetName("unifyGeneric") final def unify[U <: Unifiable](other: U): Unifying[Unit] = st => this.unify(st, other.asInstanceOf[T]).map(x => (x, ()))
+
   protected def unifyConcrete(subst: SubstitutionStore, other: T): Option[SubstitutionStore] = throw new UnsupportedOperationException()
 
   def matchHole: Option[Hole[T]]
@@ -171,6 +175,12 @@ implicit class UnifyingOps[A](f: Unifying[A]) {
   def flatMap[B](x: A => Unifying[B]): Unifying[B] = st => f(st).flatMap({ case (st, a) => x(a)(st) })
 
   def map[B](x: A => B): Unifying[B] = st => f(st).map({ case (st, a) => (st, x(a)) })
+
+  def safe: Unifying[A] = st => try {
+    f(st)
+  } catch {
+    case _: java.lang.ClassCastException => None
+  }
 }
 
 object Unifying {
@@ -184,7 +194,7 @@ object Unifying {
 trait ConcreteUnifiable extends Unifiable {
   override type T >: this.type <: ConcreteUnifiable
 
-  override def unifyConcrete(subst: SubstitutionStore, other: T): Option[SubstitutionStore] = unifyConcrete(other)(subst).map(_._1)
+  override def unifyConcrete(subst: SubstitutionStore, other: T): Option[SubstitutionStore] = unifyConcrete(other).safe(subst).map(_._1)
 
   def unifyConcrete(other: T): Unifying[Unit] = subst => this.unifyConcrete(subst, other).map(s => (s, ()))
 

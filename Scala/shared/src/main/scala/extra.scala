@@ -9,9 +9,31 @@ final case class SExpHole(hole: Hole[SExp]) extends SExp {
 }
 
 sealed trait SExpConcrete extends SExp with ConcreteUnifiable {
-  override type T = SExpConcrete
+  override final type T = SExpConcrete
 }
 
 final case class Atom(x: Symbol) extends SExpConcrete {
   override def unifyConcrete(other: T) = Unifying.guard(this == other)
+}
+
+case object Empty extends SExpConcrete {
+  override def unifyConcrete(other: T) = Unifying.guard(this == other)
+}
+
+sealed trait Bool extends SExpConcrete {
+  override def unifyConcrete(other: T) = Unifying.guard(this == other)
+}
+
+case object True extends Bool
+
+case object False extends Bool
+
+final case class Pair(x: SExp, y: SExp) extends SExpConcrete {
+  override def unifyConcrete(other: T) = other match {
+    case Pair(a, b) => for {
+      _ <- a.unify(x)
+      _ <- b.unify(y)
+    } yield ()
+    case _ => Unifying.fail
+  }
 }
