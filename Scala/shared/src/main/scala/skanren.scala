@@ -69,6 +69,19 @@ type NegSubstitution = ParVector /*or*/ [Substitution[_]]
 type NegSubstitutionStore = ParVector /*and*/ [NegSubstitution]
 
 implicit class NegSubstitutionStoreOps(negs: NegSubstitutionStore) {
+  def addAndNormalize(subst: SubstitutionStore, xs: ParVector[GoalNegUnify[_]]): Option[NegSubstitutionStore] = {
+    val newNegs = (xs.map(NegSubstitutionStoreOps.run(subst, _)).flatten) ++ (negs.map(NegSubstitutionStoreOps.run(subst, _)).flatten)
+    if (newNegs.exists(_.isEmpty)) None else Some(newNegs)
+  }
+}
+
+object NegSubstitutionStoreOps {
+  private def transverse[T](xs: ParVector[Option[T]]): Option[ParVector[T]] = try {
+    Some(xs.map(_.get))
+  } catch {
+    case _: java.util.NoSuchElementException => None
+  }
+
   // None means success, Some(ParVector()) means failure.
   // unchecked
   private def run(subst: SubstitutionStore, x: Unifiable, y: Unifiable): Option[NegSubstitution] = Unifiable.unify(subst, x, y) match {
@@ -88,9 +101,7 @@ implicit class NegSubstitutionStoreOps(negs: NegSubstitutionStore) {
   }
 
   // None means success, Some(ParVector()) means failure.
-  private def run(subst: SubstitutionStore, x: NegSubstitution): Option[NegSubstitution] = ???
-
-  def addAndNormalize(subst: SubstitutionStore, xs: ParVector[GoalNegUnify[_]]): Option[NegSubstitutionStore] = ???
+  private def run(subst: SubstitutionStore, x: NegSubstitution): Option[NegSubstitution] = transverse(x.map(this.run(subst, _))).map(_.flatten)
 }
 
 trait HasHole[T] {
