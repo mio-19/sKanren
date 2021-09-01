@@ -57,8 +57,8 @@ trait Unifier[T] {
     self <- SubstitutionStore.walk(self)
     other <- SubstitutionStore.walk(other)
     _ <- (this.matchHole(self), this.matchHole(other)) match {
-      case (Some(selfHole), _) => SubstitutionStore.addEntry(selfHole,other)
-      case (None, Some(otherHole)) => SubstitutionStore.addEntry(otherHole,self)
+      case (Some(selfHole), _) => SubstitutionStore.addEntry(selfHole, other)
+      case (None, Some(otherHole)) => SubstitutionStore.addEntry(otherHole, self)
       case (None, None) => this.concreteUnify(self, other)
     }
   } yield ()
@@ -68,8 +68,20 @@ trait Unifier[T] {
   def matchHole(x: T): Option[Hole[T]] = ???
 }
 
+implicit class UnifierOps[T](x: T)(implicit unifier: Unifier[T]) {
+  // todo
+}
+
 trait ConcreteUnifier[T] extends Unifier[T] {
   override def concreteUnify(self: T, other: T): Unifying[Unit] = throw new UnsupportedOperationException("concreteUnify is required")
 
   final override def matchHole(x: T): Option[Hole[T]] = None
 }
+
+trait ConcreteAtomUnifier[T] extends ConcreteUnifier[T] {
+  override def concreteUnify(self: T, other: T): Unifying[Unit] = Unifying.guard(self == other)
+}
+
+implicit object SymbolUnifier extends ConcreteAtomUnifier[Symbol]
+
+implicit object UnitUnifier extends ConcreteAtomUnifier[Unit]
