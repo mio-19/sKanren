@@ -433,10 +433,14 @@ object Logic {
   }
 }
 
+/*
 trait LogicExtractor[T, U] {
   def unapplyo(x: T): Logic[U]
 }
+*/
 
+/*
 trait Generatiable[T] {
   def generate: Logic[T]
 }
+*/

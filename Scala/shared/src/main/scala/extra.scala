@@ -16,8 +16,18 @@ final case class Atom(x: Symbol) extends SExpConcrete {
   override def unifyConcrete(other: T) = Unifying.guard(this == other)
 }
 
-case object Empty extends SExpConcrete {
+object Atom {
+  // is it possible?
+  // Can we implement Unifiable for Symbol?
+  def unapplyo(x: SExp): Logic[Symbol] = ???
+}
+
+final case class Empty() extends SExpConcrete {
   override def unifyConcrete(other: T) = Unifying.guard(this == other)
+}
+
+object Empty {
+  def unapplyo(x: SExp): Logic[Unit] = ???
 }
 
 sealed trait Bool extends SExpConcrete {
