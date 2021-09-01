@@ -68,8 +68,10 @@ trait Unifier[T] {
   def matchHole(x: T): Option[Hole[T]] = ???
 }
 
-implicit class UnifierOps[T](x: T)(implicit unifier: Unifier[T]) {
-  // todo
+implicit class UnifierOps[T](self: T)(implicit unifier: Unifier[T]) {
+  def ===(other: T): GoalUnify[T] = GoalUnify(self, other)
+
+  def =/=(other: T): GoalNegUnify[T] = GoalNegUnify(self, other)
 }
 
 trait ConcreteUnifier[T] extends Unifier[T] {
