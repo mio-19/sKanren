@@ -77,13 +77,15 @@ implicit class NegSubstitutionStoreOps(negs: NegSubstitutionStore) {
 }
 
 private def catcher[T]: PartialFunction[Throwable, Option[T]] = {
-  case _: java.util.NoSuchElementException => None
+  case _: java.lang.ClassCastException => None
 }
 
 object NegSubstitutionStoreOps {
   private def transverse[T](xs: ParVector[Option[T]]): Option[ParVector[T]] = try {
     Some(xs.map(_.get))
-  } catch catcher
+  } catch {
+    case _: java.util.NoSuchElementException => None
+  }
 
   // None means success, Some(ParVector()) means failure.
   // unchecked
