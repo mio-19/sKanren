@@ -85,3 +85,7 @@ trait ConcreteAtomUnifier[T] extends ConcreteUnifier[T] {
 implicit object SymbolUnifier extends ConcreteAtomUnifier[Symbol]
 
 implicit object UnitUnifier extends ConcreteAtomUnifier[Unit]
+
+implicit object StringUnifier extends ConcreteAtomUnifier[String]
+
+implicit object BooleanUnifier extends ConcreteAtomUnifier[Boolean]
