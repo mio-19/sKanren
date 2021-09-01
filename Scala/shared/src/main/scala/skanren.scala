@@ -29,6 +29,9 @@ implicit class SubstitutionStoreOps(subst: SubstitutionStore) {
   } yield this.walk(next)).getOrElse(x)
 }
 
+object SubstitutionStore {
+  inline def walk[T](x: T)(implicit unifier: Unifier[T]): Unifying[T] = subst => Some((subst, subst.walk(x)))
+}
 
 type Unifying[T] = SubstitutionStore => Option[(SubstitutionStore, T)]
 
@@ -49,13 +52,23 @@ object Unifying {
 trait Unifier[T] {
   final implicit val thisUnifier: Unifier[T] = this
 
-  def unify(self: T, other: T): Unifying[Unit] = ???
+  def unify(self: T, other: T): Unifying[Unit] = for {
+    self <- SubstitutionStore.walk(self)
+    other <- SubstitutionStore.walk(other)
+    _ <- (this.matchHole(self), this.matchHole(other)) match {
+      case (Some(selfHole), _) => ???
+      case (None, Some(otherHole)) => ???
+      case (None, None) => this.concreteUnify(self, other)
+    }
+  } yield ()
+
+  protected def concreteUnify(self: T, other: T): Unifying[Unit] = throw new UnsupportedOperationException("concreteUnify is not implemented")
 
   def matchHole(x: T): Option[Hole[T]] = ???
 }
 
 trait ConcreteUnifier[T] extends Unifier[T] {
-  def concreteUnify(self: T, other: T): Unifying[Unit] = ???
+  override def concreteUnify(self: T, other: T): Unifying[Unit] = throw new UnsupportedOperationException("concreteUnify is required")
 
-  override def matchHole(x: T): Option[Hole[T]] = None
+  final override def matchHole(x: T): Option[Hole[T]] = None
 }
