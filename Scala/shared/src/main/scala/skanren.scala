@@ -21,8 +21,6 @@ implicit class SubstitutionStoreOps(subst: SubstitutionStore) {
 
   private def get[T](x: Hole[T]): Option[T] = subst.get(x).asInstanceOf[Option[T]]
 
-  private def updated[T](h: Hole[T], x: T): SubstitutionStore = subst.updated(h, x)
-
   def walk[T](x: T)(implicit unifier: Unifier[T]): T = (for {
     hole <- unifier.matchHole(x)
     next <- this.get(hole)
@@ -31,6 +29,9 @@ implicit class SubstitutionStoreOps(subst: SubstitutionStore) {
 
 object SubstitutionStore {
   inline def walk[T](x: T)(implicit unifier: Unifier[T]): Unifying[T] = subst => Some((subst, subst.walk(x)))
+
+  inline def addEntry[T](h: Hole[T], x: T): Unifying[Unit] =
+    subst => Some((if (subst.contains(h)) throw new IllegalArgumentException() else subst.updated(h, x)), ())
 }
 
 type Unifying[T] = SubstitutionStore => Option[(SubstitutionStore, T)]
@@ -56,8 +57,8 @@ trait Unifier[T] {
     self <- SubstitutionStore.walk(self)
     other <- SubstitutionStore.walk(other)
     _ <- (this.matchHole(self), this.matchHole(other)) match {
-      case (Some(selfHole), _) => ???
-      case (None, Some(otherHole)) => ???
+      case (Some(selfHole), _) => SubstitutionStore.addEntry(selfHole,other)
+      case (None, Some(otherHole)) => SubstitutionStore.addEntry(otherHole,self)
       case (None, None) => this.concreteUnify(self, other)
     }
   } yield ()
