@@ -76,12 +76,14 @@ implicit class NegSubstitutionStoreOps(negs: NegSubstitutionStore) {
   }
 }
 
+private def catcher[T]: PartialFunction[Throwable, Option[T]] = {
+  case _: java.util.NoSuchElementException => None
+}
+
 object NegSubstitutionStoreOps {
   private def transverse[T](xs: ParVector[Option[T]]): Option[ParVector[T]] = try {
     Some(xs.map(_.get))
-  } catch {
-    case _: java.util.NoSuchElementException => None
-  }
+  } catch catcher
 
   // None means success, Some(ParVector()) means failure.
   // unchecked
@@ -132,7 +134,11 @@ trait Unifiable {
 
   final def ==(other: T): Goal = GoalUnify(this, other)
 
+  @targetName("eq") final def ==[U <: Unifiable](other: U): Goal = GoalUnify(this, other)
+
   final def !=(other: T): Goal = GoalNegUnify(this, other)
+
+  @targetName("notEq") final def !=[U <: Unifiable](other: U): Goal = GoalNegUnify(this, other)
 }
 
 /*
@@ -143,23 +149,28 @@ trait UnifyingExtractor[T, U] {
 */
 
 object Unifiable {
-  def unify[T <: Unifiable](subst: SubstitutionStore, a: T, b: T): Option[SubstitutionStore] = a.unify(subst, b.asInstanceOf[a.T])
+  def unify[T <: Unifiable](subst: SubstitutionStore, a: T, b: T): Option[SubstitutionStore] = try {
+    a.unify(subst, b.asInstanceOf[a.T])
+  } catch catcher
 
-  def unify[T <: Unifiable, U <: Unifiable](subst: SubstitutionStore, a: T, b: T, x: T, y: T): Option[SubstitutionStore] = for {
-    subst <- unify(subst, a, b)
-    subst <- unify(subst, x, y)
-  } yield subst
+  def unify[T <: Unifiable, U <: Unifiable](subst: SubstitutionStore, a: T, b: T, x: T, y: T): Option[SubstitutionStore] =
+    for {
+      subst <- unify(subst, a, b)
+      subst <- unify(subst, x, y)
+    } yield subst
 
-  def unify[A <: Unifiable, B <: Unifiable](subst: SubstitutionStore, a: (A, B), b: (A, B)): Option[SubstitutionStore] = for {
-    subst <- unify(subst, a._1, b._1)
-    subst <- unify(subst, a._2, b._2)
-  } yield subst
+  def unify[A <: Unifiable, B <: Unifiable](subst: SubstitutionStore, a: (A, B), b: (A, B)): Option[SubstitutionStore] =
+    for {
+      subst <- unify(subst, a._1, b._1)
+      subst <- unify(subst, a._2, b._2)
+    } yield subst
 
-  def unify[A <: Unifiable, B <: Unifiable, C <: Unifiable](subst: SubstitutionStore, a: (A, B, C), b: (A, B, C)): Option[SubstitutionStore] = for {
-    subst <- unify(subst, a._1, b._1)
-    subst <- unify(subst, a._2, b._2)
-    subst <- unify(subst, a._3, b._3)
-  } yield subst
+  def unify[A <: Unifiable, B <: Unifiable, C <: Unifiable](subst: SubstitutionStore, a: (A, B, C), b: (A, B, C)): Option[SubstitutionStore] =
+    for {
+      subst <- unify(subst, a._1, b._1)
+      subst <- unify(subst, a._2, b._2)
+      subst <- unify(subst, a._3, b._3)
+    } yield subst
 }
 
 /*
